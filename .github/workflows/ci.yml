@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      # Checkstyle, unit, module, architecture and integration tests (Testcontainers uses the runner's Docker), PMD.
+      - run: ./mvnw -B -ntp verify
+      - name: Keep reports of a failed build
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-reports
+          path: |
+            backend/target/surefire-reports/
+            backend/target/checkstyle-result.xml
+            backend/target/pmd.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Formatting
+        run: npx prettier --check "src/**/*.{ts,html,scss}"
+      - name: Texts are extracted for translation
+        run: |
+          npm run i18n:extract
+          git diff --exit-code -- src/locale/messages.json || {
+            echo "::error::Texts changed. Run 'npm run i18n:extract' and translate the new messages."
+            exit 1
+          }
+      - run: npm test -- --watch=false
+      - run: npm run build

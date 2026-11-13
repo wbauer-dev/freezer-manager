@@ -1,0 +1,159 @@
+@if (entries.isLoading() || freezers.isLoading()) {
+  <div class="stats">
+    @for (i of [0, 1, 2]; track i) {
+      <div class="skeleton stat-skeleton"></div>
+    }
+  </div>
+  @for (i of [0, 1, 2]; track i) {
+    <div class="skeleton row-skeleton"></div>
+  }
+}
+
+@if (entries.error()) {
+  <p class="field-error" i18n="@@eatFirst.loadError">The freezer contents could not be loaded.</p>
+}
+
+@if (entries.hasValue() && freezers.hasValue()) {
+  @if (entries.value().length === 0) {
+    <div class="empty rise">
+      <div class="empty-art" aria-hidden="true">
+        <span class="flake f1">❄️</span>
+        <span class="flake f2">❄️</span>
+        <span class="flake f3">❄️</span>
+        <span class="orb"><span class="material-symbols-rounded">kitchen</span></span>
+      </div>
+      @if (freezers.value().length === 0) {
+        <h2 i18n="@@eatFirst.noFreezers.title">No freezers yet</h2>
+        <p i18n="@@eatFirst.noFreezers.text">
+          Add your freezers and their drawers — then everything you freeze has its place.
+        </p>
+        <a mat-flat-button class="cta" routerLink="../freezers">
+          <mat-icon>add</mat-icon>
+          <span i18n="@@eatFirst.noFreezers.action">Set up your first freezer</span>
+        </a>
+      } @else {
+        <h2 i18n="@@eatFirst.empty.title">Your freezers are empty</h2>
+        <p i18n="@@eatFirst.empty.text">
+          Freeze something and it shows up here — the items to eat first at the top.
+        </p>
+        <a mat-flat-button class="cta" routerLink="../freeze">
+          <mat-icon>ac_unit</mat-icon>
+          <span i18n="@@eatFirst.empty.action">Freeze your first item</span>
+        </a>
+      }
+    </div>
+  } @else {
+    <div class="stats">
+      <button
+        type="button"
+        class="stat glass rise"
+        [class.active]="filter() === 'ALL'"
+        (click)="filter.set('ALL')"
+        matRipple
+      >
+        <span class="stat-icon"><mat-icon>inventory_2</mat-icon></span>
+        <strong>{{ stats().items }}</strong>
+        <span>
+          <span i18n="@@eatFirst.stats.items">{stats().items, plural, =1 {item} other {items}}</span
+          ><span class="wide-only">
+            ·
+            <span i18n="@@eatFirst.stats.portions">{stats().portions, plural,
+              =1 {1 portion}
+              other {{{ stats().portions }} portions}
+            }</span></span
+          >
+        </span>
+      </button>
+      <button
+        type="button"
+        class="stat glass rise status-expiring_soon"
+        style="--i: 1"
+        [class.active]="filter() === 'EXPIRING_SOON'"
+        (click)="toggleFilter('EXPIRING_SOON')"
+        matRipple
+      >
+        <span class="stat-icon"><mat-icon>hourglass_top</mat-icon></span>
+        <strong>{{ stats().soon }}</strong>
+        <span i18n="@@eatFirst.stats.soon">eat soon</span>
+      </button>
+      <button
+        type="button"
+        class="stat glass rise status-expired"
+        style="--i: 2"
+        [class.active]="filter() === 'EXPIRED'"
+        (click)="toggleFilter('EXPIRED')"
+        matRipple
+      >
+        <span class="stat-icon"><mat-icon>priority_high</mat-icon></span>
+        <strong>{{ stats().expired }}</strong>
+        <span i18n="@@eatFirst.stats.expired">expired</span>
+      </button>
+    </div>
+
+    <label class="search glass rise" style="--i: 3">
+      <mat-icon>search</mat-icon>
+      <input
+        type="search"
+        placeholder="Search your freezer…"
+        i18n-placeholder="@@eatFirst.search"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </label>
+
+    @for (group of groups(); track group.status) {
+      <section class="group" [class]="statusClass(group.status)">
+        <h2 class="group-title">
+          <span class="group-icon"
+            ><mat-icon>{{ group.icon }}</mat-icon></span
+          >
+          {{ group.title }}
+          <span class="count">{{ group.entries.length }}</span>
+        </h2>
+        <div class="items">
+          @for (entry of group.entries; track entry.itemId) {
+            <a
+              class="item glass lift rise"
+              [class]="statusClass(entry.expiryStatus)"
+              [style.--i]="$index"
+              [routerLink]="['../items', entry.itemId]"
+              matRipple
+            >
+              <app-food-avatar
+                [emoji]="emojiOf().get(entry.productId)"
+                [status]="entry.expiryStatus"
+                [freshness]="freshness(entry)"
+                [photo]="photo(entry)"
+                [size]="58"
+                [style.view-transition-name]="'food-' + entry.itemId"
+              />
+              <span class="body">
+                <span class="name">{{ entry.productName }}</span>
+                @if (entry.note) {
+                  <span class="note">{{ entry.note }}</span>
+                }
+                <span class="when-inline"
+                  >{{ timeLeft(entry) }} · {{ entry.bestBefore | date: dateFormat }}</span
+                >
+                <span class="meta">
+                  <mat-icon>kitchen</mat-icon>
+                  {{ entry.freezerName }} · {{ entry.compartmentName }}
+                  <span class="portions">
+                    <mat-icon>pie_chart</mat-icon>
+                    {{ entry.remainingPortions }}
+                  </span>
+                </span>
+              </span>
+              <span class="when">
+                <strong>{{ timeLeft(entry) }}</strong>
+                <small>{{ entry.bestBefore | date: dateFormat }}</small>
+              </span>
+            </a>
+          }
+        </div>
+      </section>
+    } @empty {
+      <p class="no-match" i18n="@@eatFirst.noMatch">Nothing matches your search.</p>
+    }
+  }
+}

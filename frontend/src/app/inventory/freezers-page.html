@@ -1,0 +1,167 @@
+@if (freezers.isLoading() && !freezers.hasValue()) {
+  <div class="grid">
+    @for (i of [0, 1]; track i) {
+      <div class="skeleton freezer-skeleton"></div>
+    }
+  </div>
+}
+
+@if (freezers.hasValue()) {
+  <div class="grid">
+    @for (freezer of freezers.value(); track freezer.id) {
+      <article class="freezer glass rise" [style.--i]="$index">
+        <header class="freezer-head">
+          <span class="freezer-icon"><mat-icon>kitchen</mat-icon></span>
+          <div class="freezer-title">
+            <h2>{{ freezer.name }}</h2>
+            <span class="total" i18n="@@freezers.itemsInside">{itemCount(freezer), plural,
+              =1 {1 item inside}
+              other {{{ itemCount(freezer) }} items inside}
+            }</span>
+          </div>
+          <button
+            mat-icon-button
+            class="remove-freezer"
+            [disabled]="itemCount(freezer) > 0"
+            [matTooltip]="freezerTooltip(freezer)"
+            (click)="confirmingRemoval.set(freezer.id)"
+            [attr.aria-label]="removeLabel(freezer.name)"
+          >
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </header>
+
+        @if (confirmingRemoval() === freezer.id) {
+          <div class="confirm" role="alertdialog" [attr.aria-label]="removeLabel(freezer.name)">
+            <mat-icon>help_outline</mat-icon>
+            <span i18n="@@freezers.confirmRemoval"
+              >Remove <strong>{{ freezer.name }}</strong>? Items that were stored in it keep their
+              history.</span
+            >
+            <div class="confirm-actions">
+              <button mat-button type="button" (click)="confirmingRemoval.set(null)">
+                <span i18n="@@common.cancel">Cancel</span>
+              </button>
+              <button mat-flat-button type="button" class="danger" (click)="removeFreezer(freezer)">
+                <span i18n="@@common.remove">Remove</span>
+              </button>
+            </div>
+          </div>
+        }
+
+        <div class="cabinet">
+          <div
+            class="drawer-list"
+            cdkDropList
+            cdkDropListLockAxis="y"
+            [cdkDropListData]="freezer.compartments"
+            (cdkDropListDropped)="rearrange(freezer, $event)"
+          >
+            @for (compartment of freezer.compartments; track compartment.id) {
+              <div
+                class="drawer"
+                cdkDrag
+                cdkDragBoundary=".cabinet"
+                [class.filled]="compartment.itemCount > 0"
+              >
+                <div class="drawer-placeholder" *cdkDragPlaceholder></div>
+                <span class="handle" aria-hidden="true"></span>
+                <mat-icon
+                  class="grip"
+                  cdkDragHandle
+                  matTooltip="Drag to reorder"
+                  i18n-matTooltip="@@freezers.dragToReorder"
+                  >drag_indicator</mat-icon
+                >
+                <span class="drawer-name">{{ compartment.name }}</span>
+                <span class="drawer-count">
+                  <ng-container i18n="@@freezers.drawerItems">{compartment.itemCount, plural,
+                    =0 {empty}
+                    =1 {1 item}
+                    other {{{ compartment.itemCount }} items}
+                  }</ng-container>
+                </span>
+                <button
+                  mat-icon-button
+                  class="remove"
+                  [disabled]="!canRemove(freezer, compartment)"
+                  [matTooltip]="drawerTooltip(freezer, compartment)"
+                  (click)="removeCompartment(freezer, compartment)"
+                  [attr.aria-label]="removeLabel(compartment.name)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+          <div class="drawer add">
+            <mat-icon>add</mat-icon>
+            <input
+              #compartmentName
+              maxlength="40"
+              placeholder="Add a drawer…"
+              i18n-placeholder="@@freezers.addDrawer"
+              [attr.aria-label]="newDrawerLabel(freezer)"
+              (keydown.enter)="addCompartment(freezer, compartmentName)"
+            />
+            <button mat-button type="button" (click)="addCompartment(freezer, compartmentName)">
+              <span i18n="@@common.add">Add</span>
+            </button>
+          </div>
+        </div>
+      </article>
+    }
+
+    <article class="freezer new glass rise" [style.--i]="freezers.value().length">
+      <header class="freezer-head">
+        <span class="freezer-icon new-icon"><mat-icon>add</mat-icon></span>
+        <div>
+          @if (freezers.value().length === 0) {
+            <h2 i18n="@@freezers.setUp.first">Set up your first freezer</h2>
+          } @else {
+            <h2 i18n="@@freezers.setUp.another">Set up another freezer</h2>
+          }
+          <span class="total" i18n="@@freezers.setUp.hint">Name it and list its drawers</span>
+        </div>
+      </header>
+      <form class="set-up-form" (submit)="setUpFreezer($event)" novalidate>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label i18n="@@freezers.setUp.name">Name</mat-label>
+          <input
+            matInput
+            [formField]="setUpForm.name"
+            placeholder="e.g. Kitchen, Cellar"
+            i18n-placeholder="@@freezers.setUp.namePlaceholder"
+          />
+        </mat-form-field>
+        @if (setUpForm.name().touched()) {
+          @for (error of setUpForm.name().errors(); track error.kind) {
+            <p class="field-error">{{ error.message }}</p>
+          }
+        }
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label i18n="@@freezers.setUp.drawers">Drawers</mat-label>
+          <input matInput [formField]="setUpForm.compartments" />
+          <mat-hint i18n="@@freezers.setUp.drawersHint">Separated by commas</mat-hint>
+        </mat-form-field>
+        @if (setUpForm.compartments().touched()) {
+          @for (error of setUpForm.compartments().errors(); track error.kind) {
+            <p class="field-error">{{ error.message }}</p>
+          }
+        }
+        <div class="preview" aria-hidden="true">
+          @for (name of previewDrawers(); track $index) {
+            <span class="preview-drawer">{{ name }}</span>
+          }
+        </div>
+        @for (error of setUpForm().errors(); track error.kind) {
+          <p class="field-error">{{ error.message }}</p>
+        }
+        <button mat-flat-button class="cta" type="submit" [disabled]="setUpForm().submitting()">
+          <mat-icon>kitchen</mat-icon>
+          <span i18n="@@freezers.setUp.action">Set up freezer</span>
+        </button>
+      </form>
+    </article>
+  </div>
+}

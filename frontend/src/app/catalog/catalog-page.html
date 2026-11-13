@@ -1,0 +1,422 @@
+<section class="toolbar glass rise">
+  <label class="search">
+    <mat-icon>search</mat-icon>
+    <input
+      type="search"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+      placeholder="Find a food or category…"
+      i18n-placeholder="@@catalog.search.placeholder"
+      aria-label="Find a food or category"
+      i18n-aria-label="@@catalog.search.label"
+    />
+  </label>
+  @if (loaded()) {
+    <span class="summary">
+      <span i18n="@@catalog.summary.categories">{categoryCount(), plural,
+        =1 {1 category}
+        other {{{ categoryCount() }} categories}
+      }</span>
+      ·
+      <span i18n="@@catalog.summary.foods">{productCount(), plural,
+        =1 {1 food}
+        other {{{ productCount() }} foods}
+      }</span>
+    </span>
+  }
+  <button mat-flat-button class="cta" type="button" (click)="startNewCategory()">
+    <mat-icon>add</mat-icon>
+    <span i18n="@@catalog.category.new">New category</span>
+  </button>
+</section>
+
+<ng-template #editor>
+  @if (draft(); as draft) {
+    <form class="editor" (submit)="$event.preventDefault(); saveDraft()" novalidate>
+      <div class="editor-row">
+        <button
+          type="button"
+          class="emoji-pick"
+          [style.--hue]="hue(draft.emoji)"
+          [matMenuTriggerFor]="emojiMenu"
+          aria-label="Choose an emoji"
+          i18n-aria-label="@@catalog.category.chooseEmoji"
+          matTooltip="Choose an emoji"
+          i18n-matTooltip="@@catalog.category.chooseEmoji"
+        >
+          {{ draft.emoji || '?' }}
+        </button>
+        <mat-menu #emojiMenu class="emoji-menu">
+          <div class="emoji-grid">
+            @for (emoji of emojiSuggestions; track emoji) {
+              <button type="button" class="emoji-option" (click)="changeDraft({ emoji })">
+                {{ emoji }}
+              </button>
+            }
+          </div>
+          <div
+            class="emoji-custom"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
+            <input
+              maxlength="16"
+              [value]="draft.emoji"
+              (input)="changeDraft({ emoji: $any($event.target).value })"
+              placeholder="Or type any emoji"
+              i18n-placeholder="@@catalog.category.typeEmoji"
+            />
+          </div>
+        </mat-menu>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="name-field">
+          <mat-label i18n="@@catalog.category.name">Category</mat-label>
+          <input
+            matInput
+            appAutofocus
+            [value]="draft.name"
+            maxlength="40"
+            (input)="changeDraft({ name: $any($event.target).value })"
+            placeholder="e.g. Game"
+            i18n-placeholder="@@catalog.category.namePlaceholder"
+          />
+        </mat-form-field>
+      </div>
+      <div class="shelf-life">
+        <span class="shelf-life-label" i18n="@@catalog.category.keepsFor">Keeps for</span>
+        <div class="stepper">
+          <button
+            mat-icon-button
+            type="button"
+            (click)="stepShelfLife(-1)"
+            [disabled]="draft.shelfLifeMonths <= 1"
+            aria-label="Shorter"
+            i18n-aria-label="@@catalog.category.shorter"
+          >
+            <mat-icon>remove</mat-icon>
+          </button>
+          <span class="months" i18n="@@catalog.category.months">{draft.shelfLifeMonths, plural,
+            =1 {1 month}
+            other {{{ draft.shelfLifeMonths }} months}
+          }</span>
+          <button
+            mat-icon-button
+            type="button"
+            (click)="stepShelfLife(1)"
+            [disabled]="draft.shelfLifeMonths >= maxShelfLife"
+            aria-label="Longer"
+            i18n-aria-label="@@catalog.category.longer"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+        <span class="shelf-life-hint" i18n="@@catalog.category.shelfLifeHint"
+          >Suggested best-before date for food frozen from now on</span
+        >
+      </div>
+      @if (draftError(); as error) {
+        <p class="field-error">{{ error }}</p>
+      }
+      <div class="editor-actions">
+        <button mat-button type="button" (click)="cancelEditing()">
+          <span i18n="@@common.cancel">Cancel</span>
+        </button>
+        <button mat-flat-button class="cta" type="submit" [disabled]="saving()">
+          <mat-icon>check</mat-icon>
+          <span i18n="@@common.save">Save</span>
+        </button>
+      </div>
+    </form>
+  }
+</ng-template>
+
+@if (draft()?.id === null) {
+  <article class="category new glass rise">
+    <ng-container *ngTemplateOutlet="editor" />
+  </article>
+}
+
+@if (!loaded() && (categories.isLoading() || products.isLoading())) {
+  <div class="grid">
+    @for (i of [0, 1, 2, 3]; track i) {
+      <div class="skeleton category-skeleton"></div>
+    }
+  </div>
+} @else if (categories.error() || products.error()) {
+  <p class="field-error" i18n="@@catalog.loadError">The catalog could not be loaded.</p>
+} @else if (loaded()) {
+  @if (sections().length === 0 && !search()) {
+    <section class="empty glass rise">
+      <span class="empty-emoji" aria-hidden="true">🧺</span>
+      <h2 i18n="@@catalog.empty.title">Your catalog is empty</h2>
+      <p i18n="@@catalog.empty.text">
+        Add categories with the foods you freeze, or fill it with the defaults.
+      </p>
+      <div class="empty-actions">
+        <button mat-flat-button class="cta" type="button" (click)="startNewCategory()">
+          <mat-icon>add</mat-icon>
+          <span i18n="@@catalog.category.new">New category</span>
+        </button>
+        <button mat-stroked-button type="button" (click)="resetMode.set('DEFAULTS'); reset()">
+          <mat-icon>auto_awesome</mat-icon>
+          <span i18n="@@catalog.empty.useDefaults">Use the defaults</span>
+        </button>
+      </div>
+    </section>
+  } @else if (sections().length === 0) {
+    <p class="no-match" i18n="@@catalog.search.noMatch">Nothing matches “{{ search() }}”.</p>
+  }
+
+  <div class="grid">
+    @for (section of sections(); track section.category.id) {
+      <article
+        class="category glass rise"
+        [style.--i]="$index"
+        [style.--hue]="hue(section.category.emoji)"
+        [attr.data-category]="section.category.name"
+      >
+        @if (draft()?.id === section.category.id) {
+          <ng-container *ngTemplateOutlet="editor" />
+        } @else {
+          <header class="category-head">
+            <span class="category-emoji" aria-hidden="true">{{ section.category.emoji }}</span>
+            <div class="category-title">
+              <h2>{{ section.category.name }}</h2>
+              <span class="keeps">
+                <mat-icon>hourglass_bottom</mat-icon>
+                <span i18n="@@catalog.category.keeps">{section.category.shelfLifeMonths, plural,
+                  =1 {keeps 1 month}
+                  other {keeps {{ section.category.shelfLifeMonths }} months}
+                }</span>
+              </span>
+            </div>
+            <button
+              mat-icon-button
+              type="button"
+              (click)="edit(section.category)"
+              [attr.aria-label]="editLabel(section.category)"
+              [matTooltip]="editLabel(section.category)"
+            >
+              <mat-icon>edit</mat-icon>
+            </button>
+            @if (section.all.length === 0) {
+              <button
+                mat-icon-button
+                type="button"
+                (click)="confirmingRemoval.set(section.category.id)"
+                aria-label="Remove category"
+                i18n-aria-label="@@catalog.category.remove"
+                matTooltip="Remove category"
+                i18n-matTooltip="@@catalog.category.remove"
+              >
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            }
+          </header>
+        }
+
+        @if (confirmingRemoval() === section.category.id) {
+          <div class="confirm" role="alertdialog">
+            <mat-icon>help_outline</mat-icon>
+            <span i18n="@@catalog.category.confirmRemoval"
+              >Remove <strong>{{ section.category.name }}</strong>?</span
+            >
+            <div class="confirm-actions">
+              <button mat-button type="button" (click)="confirmingRemoval.set(null)">
+                <span i18n="@@common.cancel">Cancel</span>
+              </button>
+              <button
+                mat-flat-button
+                type="button"
+                class="danger"
+                (click)="removeCategory(section.category)"
+              >
+                <span i18n="@@common.remove">Remove</span>
+              </button>
+            </div>
+          </div>
+        }
+
+        <div class="foods">
+          @for (product of section.shown; track product.id) {
+            @if (renaming() === product.id) {
+              <input
+                #renameInput
+                class="food rename"
+                appAutofocus
+                [value]="product.name"
+                maxlength="40"
+                (keydown.enter)="rename(product, renameInput)"
+                (keydown.escape)="renaming.set(null)"
+                (blur)="rename(product, renameInput)"
+              />
+            } @else {
+              <button
+                type="button"
+                class="food"
+                matRipple
+                [matMenuTriggerFor]="productMenu"
+                [matMenuTriggerData]="{ product }"
+                [attr.aria-label]="productMenuLabel(product)"
+              >
+                {{ product.name }}
+              </button>
+            }
+          }
+          <label class="food add">
+            <mat-icon>add</mat-icon>
+            <input
+              #newFood
+              maxlength="40"
+              placeholder="Add food…"
+              i18n-placeholder="@@catalog.product.addPlaceholder"
+              [attr.aria-label]="addLabel(section.category)"
+              (keydown.enter)="addProduct(section.category, newFood)"
+            />
+          </label>
+        </div>
+      </article>
+    }
+  </div>
+
+  <section class="start-over glass rise">
+    <header class="start-over-head">
+      <span class="start-over-icon"><mat-icon>restart_alt</mat-icon></span>
+      <div>
+        <h2 i18n="@@catalog.reset.title">Start over</h2>
+        <p class="hint" i18n="@@catalog.reset.hint">
+          Replaces all categories and foods of your household. Food in your freezers keeps its name
+          and best-before date.
+        </p>
+      </div>
+    </header>
+    @if (info.hasValue()) {
+      <p class="started">
+        <mat-icon>history</mat-icon>
+        @if (info.value().startedWith; as startedWith) {
+          <span i18n="@@catalog.reset.startedWithDefaults"
+            >This catalog started on {{ info.value().startedAt | date: 'mediumDate' }} with the
+            defaults in {{ languageName(startedWith) }}.</span
+          >
+        } @else {
+          <span i18n="@@catalog.reset.startedEmpty"
+            >This catalog started empty on {{ info.value().startedAt | date: 'mediumDate' }}.</span
+          >
+        }
+      </p>
+    }
+    <div
+      class="choices"
+      role="radiogroup"
+      aria-label="Start with"
+      i18n-aria-label="@@catalog.reset.startWith"
+    >
+      <button
+        type="button"
+        class="choice"
+        role="radio"
+        matRipple
+        [attr.aria-checked]="resetMode() === 'DEFAULTS'"
+        [class.selected]="resetMode() === 'DEFAULTS'"
+        (click)="resetMode.set('DEFAULTS')"
+      >
+        <mat-icon>auto_awesome</mat-icon>
+        <strong i18n="@@catalog.reset.defaults">System defaults</strong>
+        <span i18n="@@catalog.reset.defaultsHint">Common categories with typical foods</span>
+      </button>
+      <button
+        type="button"
+        class="choice"
+        role="radio"
+        matRipple
+        [attr.aria-checked]="resetMode() === 'EMPTY'"
+        [class.selected]="resetMode() === 'EMPTY'"
+        (click)="resetMode.set('EMPTY')"
+      >
+        <mat-icon>check_box_outline_blank</mat-icon>
+        <strong i18n="@@catalog.reset.empty">Empty</strong>
+        <span i18n="@@catalog.reset.emptyHint">Build your own catalog from scratch</span>
+      </button>
+    </div>
+    @if (resetMode() === 'DEFAULTS' && languages.hasValue()) {
+      <div
+        class="languages"
+        role="radiogroup"
+        aria-label="Language"
+        i18n-aria-label="@@catalog.reset.language"
+      >
+        <span class="languages-label" i18n="@@catalog.reset.languageLabel">Defaults in</span>
+        @for (language of languages.value(); track language.code) {
+          <button
+            type="button"
+            class="chip language"
+            role="radio"
+            [attr.aria-checked]="resetLanguage() === language.code"
+            [class.selected]="resetLanguage() === language.code"
+            (click)="resetLanguage.set(language.code)"
+          >
+            {{ language.name }}
+          </button>
+        }
+      </div>
+    }
+    @if (confirmingReset()) {
+      <div class="confirm" role="alertdialog">
+        <mat-icon>warning</mat-icon>
+        <span i18n="@@catalog.reset.confirm"
+          >All {{ categoryCount() }} categories and {{ productCount() }} foods will be replaced.
+          Start over?</span
+        >
+        <div class="confirm-actions">
+          <button mat-button type="button" (click)="confirmingReset.set(false)">
+            <span i18n="@@common.cancel">Cancel</span>
+          </button>
+          <button mat-flat-button type="button" class="danger" (click)="reset()">
+            <span i18n="@@catalog.reset.action">Start over</span>
+          </button>
+        </div>
+      </div>
+    } @else {
+      <button
+        mat-stroked-button
+        type="button"
+        class="start-over-button"
+        (click)="confirmingReset.set(true)"
+      >
+        <mat-icon>restart_alt</mat-icon>
+        <span i18n="@@catalog.reset.ask">Start over…</span>
+      </button>
+    }
+  </section>
+}
+
+<mat-menu #productMenu>
+  <ng-template matMenuContent let-product="product">
+    <button mat-menu-item (click)="renaming.set(product.id)">
+      <mat-icon>edit</mat-icon>
+      <span i18n="@@catalog.product.rename">Rename</span>
+    </button>
+    <button mat-menu-item [matMenuTriggerFor]="moveMenu" [matMenuTriggerData]="{ product }">
+      <mat-icon>drive_file_move</mat-icon>
+      <span i18n="@@catalog.product.moveTo">Move to</span>
+    </button>
+    <button mat-menu-item (click)="removeProduct(product)">
+      <mat-icon>delete_outline</mat-icon>
+      <span i18n="@@common.remove">Remove</span>
+    </button>
+  </ng-template>
+</mat-menu>
+
+<mat-menu #moveMenu>
+  <ng-template matMenuContent let-product="product">
+    @if (categories.hasValue()) {
+      @for (category of categories.value(); track category.id) {
+        @if (category.id !== product.categoryId) {
+          <button mat-menu-item (click)="moveTo(product, category)">
+            <span class="menu-emoji">{{ category.emoji }}</span>
+            {{ category.name }}
+          </button>
+        }
+      }
+    }
+  </ng-template>
+</mat-menu>

@@ -1,0 +1,61 @@
+<div class="backdrop" aria-hidden="true">
+  <i class="tint one"></i>
+  <i class="tint two"></i>
+</div>
+
+<header class="app-bar glass">
+  <a routerLink="/" class="brand" aria-label="Freezer Manager — home" i18n-aria-label="@@app.home">
+    <span class="logo"><mat-icon>ac_unit</mat-icon></span>
+    <span class="brand-name">Freezer <span class="accent-text">Manager</span></span>
+  </a>
+  <span class="spacer"></span>
+  @if (authenticated()) {
+    <button
+      class="account"
+      [matMenuTriggerFor]="accountMenu"
+      aria-label="Account"
+      i18n-aria-label="@@app.account"
+    >
+      <app-initials-avatar [name]="userName() || '?'" [size]="38" />
+    </button>
+    <mat-menu #accountMenu xPosition="before" class="account-menu">
+      <div
+        class="account-card"
+        (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
+        <app-initials-avatar [name]="userName() || '?'" [size]="48" />
+        <div>
+          <strong>{{ userName() }}</strong>
+          <span>{{ email() }}</span>
+        </div>
+      </div>
+      <button mat-menu-item [matMenuTriggerFor]="languageMenu">
+        <mat-icon>translate</mat-icon>
+        <span i18n="@@app.language">Language</span>
+      </button>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span i18n="@@app.logout">Log out</span>
+      </button>
+    </mat-menu>
+    <mat-menu #languageMenu>
+      @for (language of languages; track language.code) {
+        <button
+          mat-menu-item
+          role="menuitemradio"
+          [attr.aria-checked]="language.code === currentLanguage"
+          [attr.lang]="language.code"
+          (click)="switchLanguage(language.code)"
+        >
+          <mat-icon>{{ language.code === currentLanguage ? 'check' : '' }}</mat-icon>
+          <span>{{ language.name }}</span>
+        </button>
+      }
+    </mat-menu>
+  }
+</header>
+
+<main>
+  <router-outlet />
+</main>

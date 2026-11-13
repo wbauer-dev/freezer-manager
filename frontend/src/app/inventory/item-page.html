@@ -1,0 +1,328 @@
+<a class="back" routerLink="../../eat-first">
+  <mat-icon>arrow_back</mat-icon>
+  <span i18n="@@household.section.eatFirst">Eat first</span>
+</a>
+
+@if (item.isLoading() && !item.hasValue()) {
+  <div class="skeleton hero-skeleton"></div>
+  <div class="skeleton panel-skeleton"></div>
+}
+
+@if (item.error()) {
+  <p class="field-error">
+    @if (notFound()) {
+      <span i18n="@@item.notFound">This item does not exist.</span>
+    } @else {
+      <span i18n="@@item.loadError">The item could not be loaded.</span>
+    }
+  </p>
+}
+
+@if (item.hasValue()) {
+  @let it = item.value();
+
+  <section class="hero glass" [class]="statusClass()" [class.gone]="it.state !== 'IN_FREEZER'">
+    @if (celebrate()) {
+      <div class="snow" aria-hidden="true">
+        @for (flake of snowflakes; track $index) {
+          <i
+            [style.left.%]="flake.x"
+            [style.animation-delay.s]="flake.delay"
+            [style.font-size.px]="flake.size"
+            >❄</i
+          >
+        }
+      </div>
+    }
+    <div class="avatar-wrap">
+      <app-food-avatar
+        class="hero-avatar"
+        [class.zoomable]="!!photoUrl()"
+        [emoji]="emoji()"
+        [status]="it.state === 'IN_FREEZER' ? it.expiryStatus : null"
+        [freshness]="it.state === 'IN_FREEZER' ? freshness() : null"
+        [photo]="photoUrl()"
+        [size]="116"
+        [style.view-transition-name]="'food-' + itemId()"
+        (click)="photoUrl() && showingPhoto.set(true)"
+      />
+      @if (it.state === 'IN_FREEZER') {
+        <input
+          #photoInput
+          type="file"
+          accept="image/*"
+          class="visually-hidden"
+          (change)="changePhoto($event)"
+        />
+        <button
+          mat-mini-fab
+          class="photo-button"
+          (click)="photoInput.click()"
+          [disabled]="uploadingPhoto()"
+          [matTooltip]="photoButtonLabel(!!it.photoId)"
+          [attr.aria-label]="photoButtonLabel(!!it.photoId)"
+        >
+          <mat-icon>{{ uploadingPhoto() ? 'hourglass_top' : 'add_a_photo' }}</mat-icon>
+        </button>
+      }
+    </div>
+    <div class="hero-body">
+      <span class="status-pill"><span class="dot"></span>{{ statusLabel() }}</span>
+      <h1>{{ it.productName }}</h1>
+      @if (it.note) {
+        <p class="note">“{{ it.note }}”</p>
+      }
+      <div class="chips">
+        <span class="chip"
+          ><mat-icon>kitchen</mat-icon>{{ it.freezerName }} ·
+          @if (it.compartmentName) {
+            {{ it.compartmentName }}
+          } @else {
+            <span i18n="@@item.removedDrawer">removed drawer</span>
+          }
+        </span>
+        @if (it.gramsPerPortion) {
+          <span class="chip"
+            ><mat-icon>scale</mat-icon
+            ><span i18n="@@item.gramsPerPortion">{{ it.gramsPerPortion }} g / portion</span></span
+          >
+        }
+        @if (it.labelCode) {
+          <span class="chip label-chip">
+            <mat-icon>qr_code_2</mat-icon>{{ formatLabelCode(it.labelCode) }}
+            @if (label.hasValue() && label.value().kind === 'PERSISTENT') {
+              <span class="label-kind" i18n="@@item.persistent">persistent</span>
+            }
+          </span>
+        }
+      </div>
+    </div>
+  </section>
+
+  @if (showingPhoto()) {
+    <div
+      class="lightbox"
+      (click)="showingPhoto.set(false)"
+      role="dialog"
+      aria-label="Photo"
+      i18n-aria-label="@@item.photo"
+    >
+      @if (largePhotoUrl() ?? photoUrl(); as url) {
+        <img [src]="url" [alt]="photoAlt(it.productName)" />
+      }
+      <button mat-icon-button class="close" aria-label="Close" i18n-aria-label="@@common.close">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  }
+
+  @switch (it.state) {
+    @case ('CONSUMED') {
+      <section class="glass panel banner rise celebrate">
+        <span class="banner-emoji">🎉</span>
+        <div>
+          <strong i18n="@@item.eaten.title">All eaten!</strong>
+          <span i18n="@@item.eaten.text"
+            >The last portion was taken out {{ it.removedAt | date: 'medium' }}.</span
+          >
+        </div>
+        @if (it.canUndoTakeOut) {
+          <button mat-stroked-button (click)="undoTakeOut()" [disabled]="busy()">
+            <mat-icon>undo</mat-icon>
+            <span i18n="@@common.undo">Undo</span>
+          </button>
+        }
+      </section>
+    }
+    @case ('DISCARDED') {
+      <section class="glass panel banner rise">
+        <span class="banner-emoji">🗑️</span>
+        <div>
+          <strong i18n="@@item.status.discarded">Discarded</strong>
+          <span i18n="@@item.discarded.text"
+            >Reason: {{ reasonLabel(it.discardReason) }} · {{ it.removedAt | date: 'medium' }}</span
+          >
+        </div>
+      </section>
+    }
+  }
+
+  @if (it.state === 'IN_FREEZER') {
+    <section class="glass panel freshness rise" [class]="statusClass()" style="--i: 1">
+      <div class="panel-head">
+        <h2 i18n="@@item.freshness">Freshness</h2>
+        <strong class="time-left">{{ it.state === 'IN_FREEZER' ? timeLeft() : '—' }}</strong>
+      </div>
+      <div class="track" aria-hidden="true">
+        <div class="fill" [style.width.%]="(1 - freshness()) * 100"></div>
+        <div
+          class="marker"
+          [class.at-start]="1 - freshness() < 0.08"
+          [class.at-end]="1 - freshness() > 0.92"
+          [style.left.%]="(1 - freshness()) * 100"
+        >
+          <span i18n="@@item.today">today</span>
+        </div>
+      </div>
+      <div class="ends">
+        <span
+          ><mat-icon>ac_unit</mat-icon
+          ><span i18n="@@item.frozenOn">Frozen {{ it.frozenOn | date: dateFormat }}</span></span
+        >
+        <span
+          ><span i18n="@@freeze.summary.bestBefore"
+            >Best before {{ it.bestBefore | date: dateFormat }}</span
+          ><mat-icon>event</mat-icon></span
+        >
+      </div>
+      <p class="source">
+        @if (it.bestBeforeOverridden) {
+          <span i18n="@@item.bestBeforeManual">Best-before date set manually.</span>
+        } @else {
+          <span i18n="@@item.bestBeforeRecommended"
+            >Best-before date from the recommended shelf life.</span
+          >
+        }
+      </p>
+    </section>
+    <section class="glass panel portions rise" style="--i: 2">
+      <div class="panel-head">
+        <h2 i18n="@@item.portions">Portions</h2>
+        <span class="left" i18n="@@item.portionsLeft"
+          >{{ it.remainingPortions }} of {{ it.initialPortions }} left</span
+        >
+      </div>
+
+      @if (tiles(); as tiles) {
+        <div class="tiles">
+          @for (index of tiles; track index) {
+            <button
+              type="button"
+              class="tile"
+              [class.taken]="index >= it.remainingPortions"
+              [class.selected]="isSelected(index)"
+              [disabled]="index >= it.remainingPortions || busy()"
+              (click)="selectFrom(index)"
+              [attr.aria-label]="tileLabel(index, it.remainingPortions)"
+              [style.--i]="index"
+            >
+              {{ emoji() }}
+            </button>
+          }
+        </div>
+        <p class="tile-hint" i18n="@@item.tileHint">Tap the portions you take out.</p>
+      } @else {
+        <div class="stepper">
+          <button
+            mat-icon-button
+            (click)="changePortions(-1)"
+            aria-label="One portion less"
+            i18n-aria-label="@@freeze.portionLess"
+          >
+            <mat-icon>remove</mat-icon>
+          </button>
+          <strong>{{ portionsToTakeOut() }}</strong>
+          <button
+            mat-icon-button
+            (click)="changePortions(1)"
+            aria-label="One portion more"
+            i18n-aria-label="@@freeze.portionMore"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+      }
+
+      <div class="actions">
+        <button mat-flat-button class="cta take-out" (click)="takeOut()" [disabled]="busy()">
+          <mat-icon>outbox</mat-icon>
+          <span i18n="@@item.takeOut">{portionsToTakeOut(), plural,
+            =1 {Take out 1 portion}
+            other {Take out {{ portionsToTakeOut() }} portions}
+          }</span>
+        </button>
+        @if (it.canUndoTakeOut) {
+          <button mat-stroked-button (click)="undoTakeOut()" [disabled]="busy()">
+            <mat-icon>undo</mat-icon>
+            <span i18n="@@item.undoTakeOut">Undo take-out</span>
+          </button>
+        }
+        <span class="spacer"></span>
+        @if (it.labelCode && label.hasValue()) {
+          @if (label.value().kind === 'PERSISTENT') {
+            <button mat-button [matMenuTriggerFor]="stickerMenu">
+              <mat-icon>print</mat-icon>
+              <span i18n="@@item.printSticker">Print sticker</span>
+            </button>
+            <mat-menu #stickerMenu>
+              <button mat-menu-item (click)="printSticker(it.labelCode, 'CONTENT_ONLY')">
+                <mat-icon>description</mat-icon>
+                <span i18n="@@item.contentsSticker">Contents sticker (no QR)</span>
+              </button>
+              <button mat-menu-item (click)="printSticker(it.labelCode, 'QR_ONLY')">
+                <mat-icon>qr_code_2</mat-icon>
+                <span i18n="@@item.persistentAgain">Persistent QR label again</span>
+              </button>
+            </mat-menu>
+          } @else {
+            <button mat-button (click)="printSticker(it.labelCode, 'QR_AND_CONTENT')">
+              <mat-icon>print</mat-icon>
+              <span i18n="@@item.printAgain">Print label again</span>
+            </button>
+          }
+        }
+        <button mat-button class="discard" [matMenuTriggerFor]="discardMenu" [disabled]="busy()">
+          <mat-icon>delete</mat-icon>
+          <span i18n="@@item.discard">Discard</span>
+        </button>
+        <mat-menu #discardMenu xPosition="before">
+          @for (reason of discardReasons; track reason.value) {
+            <button mat-menu-item (click)="discard(reason.value)">{{ reason.label }}</button>
+          }
+        </mat-menu>
+      </div>
+    </section>
+  }
+
+  <section class="glass panel history rise" style="--i: 3">
+    <h2 i18n="@@item.history">History</h2>
+    <ol class="timeline">
+      <li>
+        <span class="node frozen"><mat-icon>ac_unit</mat-icon></span>
+        <div>
+          <strong i18n="@@item.history.frozen">Frozen</strong>
+          <span
+            >{{ it.frozenOn | date: dateFormat }} ·
+            <span i18n="@@item.history.portions">{it.initialPortions, plural,
+              =1 {1 portion}
+              other {{{ it.initialPortions }} portions}
+            }</span></span
+          >
+        </div>
+      </li>
+      @for (withdrawal of it.withdrawals; track $index) {
+        <li class="rise" [style.--i]="$index">
+          <span class="node"><mat-icon>outbox</mat-icon></span>
+          <div>
+            <strong i18n="@@item.history.tookOut">{withdrawal.portions, plural,
+              =1 {{{ withdrawal.takenBy }} took out 1 portion}
+              other {{{ withdrawal.takenBy }} took out {{ withdrawal.portions }} portions}
+            }</strong>
+            <span>{{ withdrawal.takenAt | date: 'medium' }}</span>
+          </div>
+        </li>
+      }
+      @if (it.state === 'DISCARDED') {
+        <li>
+          <span class="node discarded"><mat-icon>delete</mat-icon></span>
+          <div>
+            <strong i18n="@@item.history.discarded"
+              >Discarded — {{ reasonLabel(it.discardReason) }}</strong
+            >
+            <span>{{ it.removedAt | date: 'medium' }}</span>
+          </div>
+        </li>
+      }
+    </ol>
+  </section>
+}

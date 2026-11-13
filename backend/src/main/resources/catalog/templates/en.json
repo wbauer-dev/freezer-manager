@@ -1,0 +1,173 @@
+{
+  "language": "en",
+  "name": "English",
+  "categories": [
+    {
+      "key": "beef-lamb",
+      "emoji": "🥩",
+      "shelfLifeMonths": 10,
+      "name": "Beef & lamb",
+      "products": [
+        "Beef steak",
+        "Beef roast",
+        "Lamb chops"
+      ]
+    },
+    {
+      "key": "pork",
+      "emoji": "🥓",
+      "shelfLifeMonths": 6,
+      "name": "Pork",
+      "products": [
+        "Pork chops",
+        "Pork roast",
+        "Bacon"
+      ]
+    },
+    {
+      "key": "minced-meat",
+      "emoji": "🍔",
+      "shelfLifeMonths": 3,
+      "name": "Minced meat",
+      "products": [
+        "Minced beef",
+        "Mixed minced meat",
+        "Meatballs"
+      ]
+    },
+    {
+      "key": "poultry",
+      "emoji": "🍗",
+      "shelfLifeMonths": 8,
+      "name": "Poultry",
+      "products": [
+        "Chicken breast",
+        "Chicken thighs",
+        "Turkey breast"
+      ]
+    },
+    {
+      "key": "fish-lean",
+      "emoji": "🐟",
+      "shelfLifeMonths": 6,
+      "name": "Fish (lean)",
+      "products": [
+        "Cod",
+        "Fish fingers",
+        "Prawns"
+      ]
+    },
+    {
+      "key": "fish-fatty",
+      "emoji": "🍣",
+      "shelfLifeMonths": 3,
+      "name": "Fish (fatty)",
+      "products": [
+        "Salmon",
+        "Mackerel"
+      ]
+    },
+    {
+      "key": "vegetables",
+      "emoji": "🥦",
+      "shelfLifeMonths": 12,
+      "name": "Vegetables",
+      "products": [
+        "Peas",
+        "Spinach",
+        "Green beans",
+        "Broccoli",
+        "Mixed vegetables"
+      ]
+    },
+    {
+      "key": "fruit",
+      "emoji": "🍓",
+      "shelfLifeMonths": 12,
+      "name": "Fruit",
+      "products": [
+        "Strawberries",
+        "Raspberries",
+        "Blueberries",
+        "Mango"
+      ]
+    },
+    {
+      "key": "herbs",
+      "emoji": "🌿",
+      "shelfLifeMonths": 8,
+      "name": "Herbs",
+      "products": [
+        "Parsley",
+        "Chives",
+        "Basil"
+      ]
+    },
+    {
+      "key": "bread",
+      "emoji": "🥖",
+      "shelfLifeMonths": 3,
+      "name": "Bread & rolls",
+      "products": [
+        "Bread",
+        "Bread rolls",
+        "Toast"
+      ]
+    },
+    {
+      "key": "cakes",
+      "emoji": "🍰",
+      "shelfLifeMonths": 3,
+      "name": "Cakes & pastries",
+      "products": [
+        "Cake",
+        "Croissants",
+        "Muffins"
+      ]
+    },
+    {
+      "key": "cooked-meals",
+      "emoji": "🍲",
+      "shelfLifeMonths": 3,
+      "name": "Cooked meals",
+      "products": [
+        "Beef goulash",
+        "Lasagne",
+        "Chili con carne",
+        "Stew"
+      ]
+    },
+    {
+      "key": "soups-sauces",
+      "emoji": "🥣",
+      "shelfLifeMonths": 4,
+      "name": "Soups & sauces",
+      "products": [
+        "Bolognese sauce",
+        "Tomato sauce",
+        "Vegetable soup",
+        "Chicken stock"
+      ]
+    },
+    {
+      "key": "dairy",
+      "emoji": "🧀",
+      "shelfLifeMonths": 6,
+      "name": "Butter & cheese",
+      "products": [
+        "Butter",
+        "Grated cheese"
+      ]
+    },
+    {
+      "key": "other",
+      "emoji": "📦",
+      "shelfLifeMonths": 3,
+      "name": "Other",
+      "products": [
+        "Ice cream",
+        "Pizza"
+      ]
+    }
+  ]
+}

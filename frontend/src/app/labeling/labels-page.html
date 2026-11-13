@@ -1,0 +1,185 @@
+@if (sheet.isLoading() && !sheet.hasValue()) {
+  <div class="layout">
+    <div class="skeleton queue-skeleton"></div>
+    <div class="skeleton sheet-skeleton"></div>
+  </div>
+}
+
+@if (sheet.hasValue()) {
+  @let s = sheet.value();
+  <div class="layout">
+    <div class="column">
+      <!-- Print queue -->
+      <section class="glass panel rise">
+        <div class="panel-head">
+          <h2 i18n="@@labels.queue.title">Print queue</h2>
+          <span class="muted" i18n="@@labels.queue.waiting">{s.queue.length, plural,
+            =1 {1 sticker waiting}
+            other {{{ s.queue.length }} stickers waiting}
+          }</span>
+        </div>
+
+        @if (s.queue.length === 0) {
+          <div class="empty">
+            <mat-icon>qr_code_2</mat-icon>
+            <p i18n="@@labels.queue.empty">
+              Nothing to print. When you freeze something with a new label, its sticker waits here.
+            </p>
+          </div>
+        } @else {
+          <ol class="queue">
+            @for (sticker of s.queue; track sticker.code + sticker.layout) {
+              <li class="queued rise" [style.--i]="$index">
+                <span class="number">{{ $index + 1 }}</span>
+                <span class="info">
+                  <span class="title">
+                    @if (sticker.title) {
+                      {{ sticker.title }}
+                    } @else {
+                      <span i18n="@@labels.persistentLabel">Persistent label</span>
+                    }
+                  </span>
+                  <span class="meta">
+                    <span
+                      class="layout-badge"
+                      [class]="'layout-badge ' + sticker.layout.toLowerCase()"
+                      >{{ layoutNames[sticker.layout] }}</span
+                    >
+                    @if (sticker.bestBefore) {
+                      ·
+                      <span i18n="@@labels.queue.bestBefore"
+                        >best before {{ sticker.bestBefore | date: dateFormat }}</span
+                      >
+                    }
+                  </span>
+                </span>
+                <code>{{ format(sticker.code) }}</code>
+                <button
+                  mat-icon-button
+                  (click)="remove(sticker.code, sticker.layout)"
+                  [disabled]="busy()"
+                  matTooltip="Remove from the queue"
+                  i18n-matTooltip="@@labels.queue.remove"
+                  [attr.aria-label]="removeFromQueueLabel(sticker.title ?? format(sticker.code))"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </li>
+            }
+          </ol>
+
+          <button mat-flat-button class="cta print" (click)="print()" [disabled]="busy()">
+            <mat-icon>print</mat-icon>
+            <span i18n="@@labels.queue.print">{s.queue.length, plural,
+              =1 {Print 1 sticker}
+              other {Print {{ s.queue.length }} stickers}
+            }</span>
+          </button>
+          <p class="hint">
+            <mat-icon>info</mat-icon>
+            <span
+              >{{ startHint() }}
+              <span i18n="@@labels.actualSize">Print the PDF at actual size.</span></span
+            >
+          </p>
+        }
+      </section>
+
+      <!-- Persistent labels -->
+      <section class="glass panel rise" style="--i: 1">
+        <div class="panel-head">
+          <h2 i18n="@@labels.persistent.title">Persistent labels</h2>
+          @if (stock.hasValue()) {
+            <span class="muted" i18n="@@labels.persistent.stock"
+              >{{ stock.value().freePersistent }} free · {{ stock.value().persistentInUse }} in
+              use</span
+            >
+          }
+        </div>
+        <p class="muted" i18n="@@labels.persistent.text">
+          A QR code only, printed once: stick it on a container, lid or bag clip. When the food is
+          eaten, the label is free for the next filling. The app knows what is inside — print a
+          contents sticker or write on the box if you want to read it without your phone.
+        </p>
+        <p class="tip">
+          <mat-icon>ac_unit</mat-icon>
+          <span i18n="@@labels.persistent.tip"
+            >Use freezer-proof stickers (rated to −20 °C or colder); ordinary paper labels peel off
+            in the cold.</span
+          >
+        </p>
+        <div class="create-persistent">
+          <div class="stepper">
+            <button
+              type="button"
+              class="step-button"
+              (click)="changePersistentCount(-1)"
+              aria-label="One label less"
+              i18n-aria-label="@@labels.persistent.less"
+            >
+              <mat-icon>remove</mat-icon>
+            </button>
+            <strong>{{ persistentCount() }}</strong>
+            <button
+              type="button"
+              class="step-button"
+              (click)="changePersistentCount(1)"
+              aria-label="One label more"
+              i18n-aria-label="@@labels.persistent.more"
+            >
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+          <button mat-stroked-button (click)="createPersistentLabels()" [disabled]="busy()">
+            <mat-icon>add</mat-icon>
+            <span i18n="@@labels.persistent.add">Add to print queue</span>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Current sheet -->
+    <section class="glass panel rise sheet-panel" style="--i: 2">
+      <div class="panel-head">
+        <h2 i18n="@@labels.sheet.title">Current sheet</h2>
+        <button mat-button (click)="startNewSheet()" [disabled]="busy()">
+          <mat-icon>restart_alt</mat-icon>
+          <span i18n="@@labels.sheet.new">New sheet</span>
+        </button>
+      </div>
+      <div class="paper" [style.grid-template-columns]="'repeat(' + s.columns + ', 1fr)'">
+        @for (cell of cells(); track cell.position) {
+          <button
+            type="button"
+            class="cell"
+            [class.used]="cell.used"
+            [class.queued]="cell.queued !== null"
+            [disabled]="cell.queued !== null || busy()"
+            (click)="toggle(cell.position)"
+            [matTooltip]="cellTooltip(cell)"
+            [attr.aria-label]="cellLabel(cell)"
+          >
+            @if (cell.queued) {
+              <span class="cell-number">{{ cell.queued }}</span>
+            } @else if (cell.used) {
+              <mat-icon>check</mat-icon>
+            }
+          </button>
+        }
+      </div>
+      <div class="legend">
+        <span><i class="swatch free"></i><span i18n="@@labels.legend.free">free</span></span>
+        <span
+          ><i class="swatch queued"></i><span i18n="@@labels.legend.next">next print</span></span
+        >
+        <span><i class="swatch used"></i><span i18n="@@labels.legend.used">used</span></span>
+      </div>
+      <p class="hint">
+        <mat-icon>touch_app</mat-icon>
+        <span i18n="@@labels.sheet.hint"
+          >Tap a position to mark a torn or misprinted sticker as used.</span
+        >
+      </p>
+    </section>
+  </div>
+}

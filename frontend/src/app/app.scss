@@ -1,0 +1,146 @@
+// ---- Background: two very faint, static tints ----
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tint {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+
+  &.one {
+    top: -38vmax;
+    left: -22vmax;
+    background: radial-gradient(circle, var(--page-tint), transparent 70%);
+  }
+
+  &.two {
+    right: -28vmax;
+    bottom: -42vmax;
+    background: radial-gradient(
+      circle,
+      light-dark(rgb(111 138 119 / 0.08), rgb(111 138 119 / 0.05)),
+      transparent 70%
+    );
+  }
+}
+
+// ---- App bar ----
+
+.app-bar {
+  position: sticky;
+  top: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 960px;
+  margin: 10px auto 0;
+  padding: 8px 10px 8px 12px;
+  border-radius: 20px;
+  width: calc(100% - 20px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--accent-shadow);
+  transition: transform 0.6s var(--ease-spring);
+
+  .mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.brand:hover .logo {
+  transform: rotate(60deg);
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.account {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-out);
+
+  &:hover {
+    transform: scale(1.06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}
+
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 4px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  strong {
+    font-family: var(--font-display);
+    font-size: 1rem;
+  }
+
+  span {
+    color: var(--muted);
+    font: var(--mat-sys-body-small);
+  }
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px 120px;
+}
+
+// Room for the bottom navigation and the floating "Freeze" button above it.
+@media (max-width: 640px) {
+  main {
+    padding-bottom: calc(176px + env(safe-area-inset-bottom));
+  }
+}

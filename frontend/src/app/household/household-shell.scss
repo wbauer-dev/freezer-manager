@@ -1,0 +1,213 @@
+.household-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 18px -8px;
+
+  .title {
+    min-width: 0;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 4.5vw, 2.1rem);
+    font-weight: 700;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.title-skeleton {
+  width: 220px;
+  height: 46px;
+}
+
+// ---- Desktop: segmented control and "Freeze" button ----
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+.inline-freeze {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 22px 0 18px;
+  border-radius: 16px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+
+  .mat-icon {
+    transition: transform 0.6s var(--ease-spring);
+  }
+
+  &:hover .mat-icon {
+    transform: rotate(120deg);
+  }
+}
+
+.segment {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  color: var(--muted);
+  font: var(--mat-sys-label-large);
+  text-decoration: none;
+  transition:
+    color 0.25s,
+    background 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
+
+  .mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  &:hover {
+    color: var(--mat-sys-on-surface);
+  }
+
+  &.active {
+    color: var(--mat-sys-on-secondary-container);
+    background: var(--mat-sys-secondary-container);
+
+    .mat-icon {
+      font-variation-settings: 'FILL' 1;
+    }
+  }
+}
+
+// ---- Phone: bottom navigation ----
+
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .nav-row {
+    display: none;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+    display: grid;
+    // One column per section, however many there are.
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    padding: 6px;
+    border-radius: 24px;
+    background: var(--glass-bg-strong);
+  }
+
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    gap: 2px;
+    padding: 4px 0;
+    color: var(--muted);
+    text-decoration: none;
+    font: var(--mat-sys-label-small);
+
+    &.active {
+      color: var(--mat-sys-primary);
+
+      .tab-icon {
+        background: color-mix(in srgb, var(--mat-sys-primary) 16%, transparent);
+        width: 52px;
+      }
+
+      .mat-icon {
+        font-variation-settings: 'FILL' 1;
+      }
+    }
+  }
+
+  .tab-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 30px;
+    border-radius: 999px;
+    transition:
+      width 0.35s var(--ease-spring),
+      background 0.3s;
+  }
+}
+
+// ---- Floating "Freeze" button (phones) ----
+
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  z-index: 21;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 22px 0 18px;
+  border-radius: 20px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-decoration: none;
+  animation: pop-in 0.5s var(--ease-spring) both 0.2s;
+
+  .mat-icon {
+    transition: transform 0.6s var(--ease-spring);
+  }
+
+  &:hover .mat-icon {
+    transform: rotate(120deg);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(20px);
+  }
+}
+
+@media (min-width: 641px) {
+  .fab {
+    display: none;
+  }
+}

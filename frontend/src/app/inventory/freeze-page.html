@@ -1,0 +1,440 @@
+<header class="page-head rise">
+  <p class="eyebrow" i18n="@@freeze.eyebrow">New item</p>
+  <h1><span i18n="@@freeze.title">Freeze something</span> <span aria-hidden="true">❄️</span></h1>
+</header>
+
+@if (freezers.isLoading() || products.isLoading() || categories.isLoading()) {
+  @for (i of [0, 1, 2]; track i) {
+    <div class="skeleton section-skeleton"></div>
+  }
+}
+
+@if (freezers.hasValue() && freezers.value().length === 0) {
+  <div class="glass panel rise no-freezer">
+    <mat-icon>kitchen</mat-icon>
+    <p i18n="@@freeze.noFreezer">There is no freezer yet.</p>
+    <a mat-flat-button class="cta" routerLink="../freezers" i18n="@@freeze.setUpFreezer"
+      >Set up a freezer</a
+    >
+  </div>
+} @else if (freezers.hasValue() && products.hasValue() && categories.hasValue()) {
+  <form (submit)="freeze($event)" novalidate>
+    <!-- 1 · What -->
+    <section class="glass panel step rise">
+      <h2>
+        <span class="step-number">1</span>
+        <span i18n="@@freeze.step.what">What are you freezing?</span>
+      </h2>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full">
+        <mat-label i18n="@@freeze.food">Food</mat-label>
+        <mat-icon matPrefix class="prefix-icon">search</mat-icon>
+        <input
+          matInput
+          id="product"
+          [formField]="freezeForm.product"
+          [matAutocomplete]="productOptions"
+          placeholder="e.g. Peas, Beef goulash"
+          i18n-placeholder="@@freeze.foodPlaceholder"
+        />
+        <mat-autocomplete #productOptions>
+          @for (product of suggestions(); track product.id) {
+            <mat-option [value]="product.name">
+              <span class="option-emoji">{{ emojiOf(product) }}</span>
+              {{ product.name }}
+            </mat-option>
+          }
+        </mat-autocomplete>
+      </mat-form-field>
+      @if (freezeForm.product().touched()) {
+        @for (error of freezeForm.product().errors(); track error.kind) {
+          <p class="field-error">{{ error.message }}</p>
+        }
+      }
+
+      <div class="photo-row">
+        <input
+          #photoInput
+          type="file"
+          accept="image/*"
+          class="visually-hidden"
+          (change)="choosePhoto($event)"
+        />
+        @if (photo(); as photo) {
+          <img
+            class="photo-preview"
+            [src]="photo.preview"
+            alt="Photo of the food"
+            i18n-alt="@@freeze.photo.alt"
+          />
+          <button mat-button type="button" (click)="photoInput.click()">
+            <mat-icon>photo_camera</mat-icon>
+            <span i18n="@@freeze.photo.change">Change</span>
+          </button>
+          <button mat-button type="button" (click)="removePhoto()">
+            <mat-icon>close</mat-icon>
+            <span i18n="@@common.remove">Remove</span>
+          </button>
+        } @else {
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="photoInput.click()"
+            [disabled]="uploadingPhoto()"
+          >
+            <mat-icon>add_a_photo</mat-icon>
+            @if (uploadingPhoto()) {
+              <span i18n="@@freeze.photo.uploading">Uploading…</span>
+            } @else {
+              <span i18n="@@freeze.photo.add">Add a photo</span>
+            }
+          </button>
+          <span class="optional" i18n="@@freeze.photo.hint"
+            >optional — makes it easy to recognise</span
+          >
+        }
+      </div>
+      @if (photoError(); as error) {
+        <p class="field-error">{{ error }}</p>
+      }
+
+      @if (quickPicks().length > 0 && !model().product) {
+        <div class="quick-picks">
+          @for (product of quickPicks(); track product.id) {
+            <button type="button" class="quick-pick" (click)="pick(product)" matRipple>
+              <span>{{ emojiOf(product) }}</span>
+              {{ product.name }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (isNewProduct()) {
+        <div class="new-product">
+          <p class="new-hint">
+            <mat-icon>auto_awesome</mat-icon>
+            <span i18n="@@freeze.newProduct"
+              ><strong>{{ model().product.trim() }}</strong> is new — what kind of food is it?</span
+            >
+          </p>
+          <div
+            class="categories"
+            role="radiogroup"
+            aria-label="Category"
+            i18n-aria-label="@@freeze.category"
+          >
+            @for (category of categoryList(); track category.id) {
+              <button
+                type="button"
+                class="category"
+                role="radio"
+                [attr.aria-checked]="model().categoryId === category.id"
+                [attr.data-category]="category.name"
+                [class.selected]="model().categoryId === category.id"
+                (click)="chooseCategory(category.id)"
+                matRipple
+              >
+                <span class="category-emoji">{{ category.emoji }}</span>
+                <span class="category-name">{{ category.name }}</span>
+                <span
+                  class="category-months"
+                  i18n="@@freeze.categoryMonths"
+                  >{category.shelfLifeMonths, plural,
+                    =1 {1 month}
+                    other {{{ category.shelfLifeMonths }} months}
+                  }</span
+                >
+              </button>
+            }
+          </div>
+          @if (categoryList().length === 0) {
+            <p class="optional">
+              <span i18n="@@freeze.noCategories">Your catalog has no categories yet.</span>
+              <a routerLink="../catalog"
+                ><span i18n="@@freeze.openCatalog">Open the catalog</span></a
+              >
+            </p>
+          }
+          @if (freezeForm.categoryId().touched()) {
+            @for (error of freezeForm.categoryId().errors(); track error.kind) {
+              <p class="field-error">{{ error.message }}</p>
+            }
+          }
+        </div>
+      }
+    </section>
+
+    <!-- 2 · Where -->
+    <section class="glass panel step rise" style="--i: 1">
+      <h2>
+        <span class="step-number">2</span> <span i18n="@@freeze.step.where">Where does it go?</span>
+      </h2>
+      <div class="freezers" role="radiogroup" aria-label="Drawer" i18n-aria-label="@@freeze.drawer">
+        @for (freezer of freezers.value(); track freezer.id) {
+          <div class="mini-freezer">
+            <span class="mini-name"><mat-icon>kitchen</mat-icon> {{ freezer.name }}</span>
+            <div class="mini-cabinet">
+              @for (compartment of freezer.compartments; track compartment.id) {
+                <button
+                  type="button"
+                  class="mini-drawer"
+                  role="radio"
+                  [attr.aria-checked]="model().compartmentId === compartment.id"
+                  [attr.data-compartment]="compartment.id"
+                  [class.selected]="model().compartmentId === compartment.id"
+                  (click)="chooseCompartment(compartment.id)"
+                  matRipple
+                >
+                  <span class="mini-handle" aria-hidden="true"></span>
+                  {{ compartment.name }}
+                  @if (model().compartmentId === compartment.id) {
+                    <mat-icon class="check">check_circle</mat-icon>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      @if (freezeForm.compartmentId().touched()) {
+        @for (error of freezeForm.compartmentId().errors(); track error.kind) {
+          <p class="field-error">{{ error.message }}</p>
+        }
+      }
+    </section>
+
+    <!-- 3 · How much -->
+    <section class="glass panel step rise" style="--i: 2">
+      <h2>
+        <span class="step-number">3</span> <span i18n="@@freeze.step.howMuch">How much?</span>
+      </h2>
+      <div class="amounts">
+        <div class="stepper">
+          <button
+            type="button"
+            class="step-button"
+            (click)="changePortions(-1)"
+            aria-label="One portion less"
+            i18n-aria-label="@@freeze.portionLess"
+          >
+            <mat-icon>remove</mat-icon>
+          </button>
+          <div class="stepper-value">
+            <input
+              id="portions"
+              type="number"
+              [formField]="freezeForm.portions"
+              aria-label="Portions"
+              i18n-aria-label="@@freeze.portions"
+            />
+            <span i18n="@@freeze.portionWord">{model().portions, plural,
+              =1 {portion}
+              other {portions}
+            }</span>
+          </div>
+          <button
+            type="button"
+            class="step-button"
+            (click)="changePortions(1)"
+            aria-label="One portion more"
+            i18n-aria-label="@@freeze.portionMore"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="grams">
+          <mat-label i18n="@@freeze.grams">Grams per portion</mat-label>
+          <input
+            matInput
+            id="grams"
+            type="number"
+            placeholder="optional"
+            i18n-placeholder="@@common.optional"
+            [formField]="freezeForm.gramsPerPortion"
+          />
+          <span matTextSuffix>g</span>
+        </mat-form-field>
+      </div>
+      @for (
+        error of [...freezeForm.portions().errors(), ...freezeForm.gramsPerPortion().errors()];
+        track error.kind
+      ) {
+        <p class="field-error">{{ error.message }}</p>
+      }
+    </section>
+
+    <!-- 4 · When -->
+    <section class="glass panel step rise" style="--i: 3">
+      <h2><span class="step-number">4</span> <span i18n="@@freeze.step.when">When?</span></h2>
+      <div class="row">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label i18n="@@freeze.frozenOn">Frozen on</mat-label>
+          <input matInput id="frozen-on" type="date" [formField]="freezeForm.frozenOn" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label i18n="@@freeze.bestBefore">Best before</mat-label>
+          <input matInput id="best-before" type="date" [formField]="freezeForm.bestBefore" />
+        </mat-form-field>
+      </div>
+      <p class="hint">
+        <mat-icon>tips_and_updates</mat-icon>
+        @if (category(); as category) {
+          <span i18n="@@freeze.bestBeforeHint.category"
+            >Leave “best before” empty to use the recommended {{ category.shelfLifeMonths }} months
+            for “{{ category.name }}”.</span
+          >
+        } @else {
+          <span i18n="@@freeze.bestBeforeHint.general"
+            >Leave “best before” empty to use the recommended shelf life of the food’s
+            category.</span
+          >
+        }
+      </p>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full">
+        <mat-label i18n="@@freeze.note">Note</mat-label>
+        <input
+          matInput
+          id="note"
+          [formField]="freezeForm.note"
+          placeholder="optional, e.g. Sunday leftovers"
+          i18n-placeholder="@@freeze.notePlaceholder"
+        />
+      </mat-form-field>
+    </section>
+
+    <!-- 5 · Label -->
+    <section class="glass panel step rise" style="--i: 4">
+      <h2><span class="step-number">5</span> <span i18n="@@freeze.step.label">Label</span></h2>
+      <div
+        class="label-options"
+        role="radiogroup"
+        aria-label="Label"
+        i18n-aria-label="@@freeze.step.label"
+      >
+        <button
+          type="button"
+          class="label-option"
+          role="radio"
+          [attr.aria-checked]="model().labelMode === 'new'"
+          [class.selected]="model().labelMode === 'new'"
+          (click)="chooseLabelMode('new')"
+          matRipple
+        >
+          <mat-icon>print</mat-icon>
+          <span>
+            <strong i18n="@@freeze.label.new">Print a new label</strong>
+            <small i18n="@@freeze.label.newHint">QR code with name and dates, for a bag</small>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="label-option"
+          role="radio"
+          [attr.aria-checked]="model().labelMode === 'existing'"
+          [class.selected]="model().labelMode === 'existing'"
+          (click)="chooseLabelMode('existing')"
+          matRipple
+        >
+          <mat-icon>qr_code_2</mat-icon>
+          <span>
+            <strong i18n="@@freeze.label.existing">Use a label I have</strong>
+            <small>
+              @if (freePersistentLabels() > 0) {
+                <span i18n="@@freeze.label.freePersistent">{freePersistentLabels(), plural,
+                  =1 {1 free persistent label}
+                  other {{{ freePersistentLabels() }} free persistent labels}
+                }</span>
+              } @else {
+                <span i18n="@@freeze.label.existingHint">e.g. a persistent one on a container</span>
+              }
+            </small>
+          </span>
+        </button>
+      </div>
+      @if (model().labelMode === 'existing') {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full label-code">
+          <mat-label i18n="@@freeze.label.code">Code on the label</mat-label>
+          <mat-icon matPrefix class="prefix-icon">qr_code_2</mat-icon>
+          <input
+            matInput
+            id="label-code"
+            [formField]="freezeForm.labelCode"
+            placeholder="K7Q2-M9XA"
+          />
+        </mat-form-field>
+        @if (freezeForm.labelCode().touched()) {
+          @for (error of freezeForm.labelCode().errors(); track error.kind) {
+            <p class="field-error">{{ error.message }}</p>
+          }
+        }
+        <mat-checkbox
+          class="print-contents"
+          [checked]="printContents()"
+          (change)="printContents.set($event.checked)"
+        >
+          <span i18n="@@freeze.label.printContents">Also print a sticker with the contents</span>
+        </mat-checkbox>
+        <p class="optional" i18n="@@freeze.label.writeOnBox">
+          Or write on the box — scanning the label always shows what’s inside.
+        </p>
+      }
+    </section>
+
+    <!-- Preview & submit -->
+    <section class="summary glass rise" style="--i: 5">
+      <app-food-avatar [emoji]="category()?.emoji" [photo]="photo()?.preview ?? null" [size]="60" />
+      <div class="summary-body">
+        <span class="summary-name">
+          @if (model().product.trim(); as product) {
+            {{ product }}
+          } @else {
+            <span i18n="@@freeze.summary.yourItem">Your item</span>
+          }
+        </span>
+        <span class="summary-meta">
+          <span i18n="@@freeze.summary.portions">{portionCount(), plural,
+            =1 {1 portion}
+            other {{{ portionCount() }} portions}
+          }</span>
+          @if (location(); as location) {
+            · {{ location.label }}
+          }
+        </span>
+        <span class="summary-label">
+          <mat-icon>qr_code_2</mat-icon>
+          @if (model().labelMode === 'new') {
+            <span i18n="@@freeze.summary.newLabel">New label — goes to the print queue</span>
+          } @else if (printContents()) {
+            <span i18n="@@freeze.summary.labelWithContents"
+              >Label {{ model().labelCode || '…' }} + contents sticker</span
+            >
+          } @else {
+            <span i18n="@@freeze.summary.label">Label {{ model().labelCode || '…' }}</span>
+          }
+        </span>
+        @if (previewBestBefore(); as date) {
+          <span class="summary-date">
+            <mat-icon>event</mat-icon>
+            <span i18n="@@freeze.summary.bestBefore"
+              >Best before {{ date | date: dateFormat }}</span
+            >
+          </span>
+        }
+      </div>
+      <div class="summary-actions">
+        <a mat-button routerLink="../eat-first"><span i18n="@@common.cancel">Cancel</span></a>
+        <button
+          mat-flat-button
+          class="cta freeze-button"
+          type="submit"
+          [disabled]="freezeForm().submitting()"
+        >
+          <mat-icon>ac_unit</mat-icon>
+          <span i18n="@@household.freeze">Freeze</span>
+        </button>
+      </div>
+      @for (error of freezeForm().errors(); track error.kind) {
+        <p class="field-error summary-error">{{ error.message }}</p>
+      }
+    </section>
+  </form>
+}

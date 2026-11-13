@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: freezer-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/freezer
+    username: freezer
+    password: freezer
+
+  modulith:
+    runtime:
+      # Each application module owns its migrations in db/migration/<module> and its own database schema.
+      flyway-enabled: true
+    events:
+      republish-outstanding-events-on-restart: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/freezer
+          audiences: freezer-api
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+  # Texts for users: one bundle per module, English as default, German in *_de. A new language is a new set of files.
+  messages:
+    basename: i18n/common, i18n/household, i18n/catalog, i18n/inventory, i18n/labeling, i18n/media
+    fallback-to-system-locale: false
+
+  web:
+    # Used when a request has no Accept-Language header.
+    locale: en
+
+  servlet:
+    multipart:
+      # Browsers scale photos down before uploading; this is only the upper bound.
+      max-file-size: 8MB
+      max-request-size: 9MB
+
+freezer:
+  labels:
+    # QR codes on labels link here; any phone camera then opens the app with the label's code.
+    scan-url: http://localhost:4200/s/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

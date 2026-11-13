@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="Freezer backend"
+		xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+	<description>
+		Curated PMD rules for the Freezer backend (main and test code): likely bugs, unused code, lost exceptions,
+		resource leaks, broken equals/hashCode and clear code smells. Formatting, naming and Javadoc are checked by
+		Checkstyle (config/checkstyle/checkstyle.xml), so the corresponding PMD rules are not used.
+
+		Categories that mostly find real problems are used as a whole, minus the rules that fight the design
+		(explained below). From the opinionated categories "codestyle" and "design" only selected rules are used.
+
+		Suppress a single finding in code with @SuppressWarnings("PMD.RuleName") and say why.
+	</description>
+
+	<!-- ===== Best practices: unused code, lost stack traces, resources, tests ===== -->
+
+	<rule ref="category/java/bestpractices.xml">
+		<!-- A test checks one behavior, often through several properties of the result (AssertJ). -->
+		<exclude name="UnitTestContainsTooManyAsserts"/>
+		<!--
+			Ports and module APIs with a single method (e.g. Catalog, HouseholdAccess, ImageProcessor) are not meant
+			to be implemented by lambdas; @FunctionalInterface would say otherwise.
+		-->
+		<exclude name="ImplicitFunctionalInterface"/>
+		<!-- Configured below -->
+		<exclude name="GuardLogStatement"/>
+		<exclude name="LooseCoupling"/>
+	</rule>
+	<rule ref="category/java/bestpractices.xml/GuardLogStatement">
+		<properties>
+			<!-- SLF4J placeholders make guards unnecessary for levels that are normally enabled. -->
+			<property name="logLevels" value="trace,debug"/>
+			<property name="guardsMethods" value="isTraceEnabled,isDebugEnabled"/>
+		</properties>
+	</rule>
+	<rule ref="category/java/bestpractices.xml/LooseCoupling">
+		<properties>
+			<!-- ArchUnit's JavaClasses is the type of an imported class set, not a collection implementation. -->
+			<property name="allowedTypes"
+					value="java.util.Properties,com.tngtech.archunit.core.domain.JavaClasses"/>
+		</properties>
+	</rule>
+
+	<!-- ===== Error prone: bug patterns ===== -->
+
+	<rule ref="category/java/errorprone.xml">
+		<!-- Repeated literals in tests (URLs, JSON paths, names) are easier to read than constants. -->
+		<exclude name="AvoidDuplicateLiterals"/>
+		<!-- Conditions such as "count > 1" or "length() > 1" are clear; constants would not make them clearer. -->
+		<exclude name="AvoidLiteralsInIfCondition"/>
+		<!--
+			Fields named like their accessor, as in records (e.g. HouseholdMember.householdId()), are the
+			convention for value-like classes here.
+		-->
+		<exclude name="AvoidFieldNameMatchingMethodName"/>
+		<!--
+			Catching RuntimeException is deliberate at a few boundaries: ImageIO decoders throw arbitrary runtime
+			exceptions on corrupt files, and CatalogSetup looks for a duplicate key in whatever a nested
+			transaction throws.
+		-->
+		<exclude name="AvoidCatchingGenericException"/>
+		<!-- Exceptions are never Java-serialized; they are translated to HTTP responses. -->
+		<exclude name="MissingSerialVersionUID"/>
+		<!--
+			Aggregates keep optional state in nullable fields mapped by Spring Data JDBC, e.g. FrozenItem.removedAt,
+			which is reset when a take-out is undone.
+		-->
+		<exclude name="NullAssignment"/>
+		<!-- Configured below -->
+		<exclude name="AssignmentInOperand"/>
+		<exclude name="TestClassWithoutTestCases"/>
+	</rule>
+	<rule ref="category/java/errorprone.xml/AssignmentInOperand">
+		<properties>
+			<!-- A counter incremented as an argument, e.g. define(..., position++), is clear enough. -->
+			<property name="allowIncrementDecrement" value="true"/>
+		</properties>
+	</rule>
+	<rule ref="category/java/errorprone.xml/TestClassWithoutTestCases">
+		<properties>
+			<!--
+				Test classes end with "Tests". Spring Boot's TestXxxApplication, TestcontainersConfiguration and
+				fixtures such as TestImages start with "Test" but are support classes.
+			-->
+			<property name="testClassPattern" value="^(?:.*\.)?.*Tests?$|^(?:.*\.)?.*TestCase$"/>
+		</properties>
+	</rule>
+
+	<!-- ===== Multithreading, performance, security ===== -->
+
+	<rule ref="category/java/multithreading.xml">
+		<!-- Flags every Map field; maps filled once at startup and only read afterwards are fine. -->
+		<exclude name="UseConcurrentHashMap"/>
+		<!-- A Java EE rule; a Spring application may use executors and virtual threads. -->
+		<exclude name="DoNotUseThreads"/>
+	</rule>
+
+	<rule ref="category/java/performance.xml">
+		<!-- Creating objects in loops is normal Java; the rule finds no real performance problems. -->
+		<exclude name="AvoidInstantiatingObjectsInLoops"/>
+	</rule>
+
+	<rule ref="category/java/security.xml"/>
+
+	<!-- ===== Code style: selected rules (unnecessary code); naming and layout are left to Checkstyle ===== -->
+	<!--
+		Not used, because they contradict the code conventions: MethodArgumentCouldBeFinal and
+		LocalVariableCouldBeFinal (no final parameters/locals), UseExplicitTypes (var is used),
+		CommentDefaultAccessModifier (package-private is the default visibility here), OnlyOneReturn (guard
+		clauses), ShortVariable/LongVariable/ShortMethodName, AtLeastOneConstructor,
+		LocalVariableDeclarationShouldBeAtStartOfBlock, LinguisticNaming (domain verbs such as setUpFreezer() return
+		the new freezer's id), TooManyStaticImports (AssertJ, MockMvc), UselessParentheses (clarifying parentheses).
+	-->
+	<rule ref="category/java/codestyle.xml/EmptyControlStatement"/>
+	<rule ref="category/java/codestyle.xml/ExtendsObject"/>
+	<rule ref="category/java/codestyle.xml/ForLoopShouldBeWhileLoop"/>
+	<rule ref="category/java/codestyle.xml/IdenticalCatchBranches"/>
+	<rule ref="category/java/codestyle.xml/LambdaCanBeMethodReference"/>
+	<rule ref="category/java/codestyle.xml/NoPackage"/>
+	<rule ref="category/java/codestyle.xml/PrematureDeclaration"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryAnnotationValueElement"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryBoxing"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryCast"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryConstructor"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryImport"/>
+	<rule ref="category/java/codestyle.xml/UnnecessaryReturn"/>
+	<rule ref="category/java/codestyle.xml/UnnecessarySemicolon"/>
+	<rule ref="category/java/codestyle.xml/UseDiamondOperator"/>
+	<rule ref="category/java/codestyle.xml/UselessQualifiedThis"/>
+	<rule ref="category/java/codestyle.xml/UseShortArrayInitializer"/>
+	<rule ref="category/java/codestyle.xml/UseUnderscoresInNumericLiterals"/>
+	<rule ref="category/java/codestyle.xml/VariableCanBeInlined"/>
+
+	<!-- ===== Design: selected rules (logic that can be simpler, exceptions, complexity) ===== -->
+	<!--
+		Not used, because they fight the design:
+		- GodClass, TooManyMethods, TooManyFields, ExcessiveImports, ExcessivePublicCount, CouplingBetweenObjects:
+		  aggregates are deliberately rich (behavior next to the data), integration tests cover one module each.
+		- ExcessiveParameterList: Spring Data JDBC persistence constructors (package-private) take one parameter per
+		  column, and factory methods take all values an aggregate needs to be valid.
+		- DataClass: records and Spring Data aggregates with getters.
+		- LawOfDemeter: value objects are navigated on purpose, e.g. item.getBestBefore().date().
+		- CyclomaticComplexity: counts every guard clause of validating factories and constructors (DDD value objects
+		  and aggregates validate and throw); CognitiveComplexity and NPathComplexity measure readability instead.
+		- ExceptionAsFlowControl: validation exceptions thrown inside a try block whose catch translates other
+		  failures (see AvoidCatchingGenericException in errorprone) are not flow control.
+		- SignatureDeclareThrowsException: Spring Security's HttpSecurity.build() declares "throws Exception".
+		- AvoidUncheckedExceptionsInSignatures, UseObjectForClearerAPI, InvalidJavaBean: style preferences.
+		- UseUtilityClass: Checkstyle's HideUtilityClassConstructor covers it.
+	-->
+	<rule ref="category/java/design.xml/AbstractClassWithoutAnyMethod"/>
+	<rule ref="category/java/design.xml/AvoidDeeplyNestedIfStmts"/>
+	<rule ref="category/java/design.xml/AvoidRethrowingException"/>
+	<rule ref="category/java/design.xml/AvoidThrowingNewInstanceOfSameException"/>
+	<rule ref="category/java/design.xml/AvoidThrowingNullPointerException"/>
+	<rule ref="category/java/design.xml/AvoidThrowingRawExceptionTypes"/>
+	<rule ref="category/java/design.xml/ClassWithOnlyPrivateConstructorsShouldBeFinal"/>
+	<rule ref="category/java/design.xml/CognitiveComplexity"/>
+	<rule ref="category/java/design.xml/CollapsibleIfStatements"/>
+	<rule ref="category/java/design.xml/DoNotExtendJavaLangError"/>
+	<rule ref="category/java/design.xml/FinalFieldCouldBeStatic"/>
+	<rule ref="category/java/design.xml/ImmutableField">
+		<properties>
+			<!-- Spring Data sets the @Version field of an aggregate after each save. -->
+			<property name="violationSuppressXPath"
+					value="./ancestor-or-self::FieldDeclaration[pmd-java:hasAnnotation('org.springframework.data.annotation.Version')]"/>
+		</properties>
+	</rule>
+	<rule ref="category/java/design.xml/LogicInversion"/>
+	<rule ref="category/java/design.xml/MutableStaticState"/>
+	<rule ref="category/java/design.xml/NPathComplexity"/>
+	<rule ref="category/java/design.xml/SimplifiedTernary"/>
+	<rule ref="category/java/design.xml/SimplifyBooleanReturns"/>
+	<rule ref="category/java/design.xml/SimplifyConditional"/>
+	<rule ref="category/java/design.xml/SingularField"/>
+	<rule ref="category/java/design.xml/UselessOverridingMethod"/>
+
+	<!-- ===== Documentation: Javadoc rules are in Checkstyle; only empty bodies need a comment ===== -->
+
+	<rule ref="category/java/documentation.xml/UncommentedEmptyConstructor"/>
+	<rule ref="category/java/documentation.xml/UncommentedEmptyMethodBody"/>
+
+</ruleset>

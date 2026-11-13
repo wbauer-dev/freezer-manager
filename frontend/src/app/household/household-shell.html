@@ -1,0 +1,93 @@
+<header class="household-header">
+  <a
+    mat-icon-button
+    routerLink="/households"
+    class="back"
+    aria-label="All households"
+    i18n-aria-label="@@household.allHouseholds"
+    title="All households"
+    i18n-title="@@household.allHouseholds"
+  >
+    <mat-icon>arrow_back</mat-icon>
+  </a>
+  @if (household.hasValue()) {
+    <app-initials-avatar class="rise" [name]="household.value().name" [size]="46" [square]="true" />
+    <div class="title rise">
+      <p class="eyebrow" i18n="@@household.eyebrow">Household</p>
+      <h1>{{ household.value().name }}</h1>
+    </div>
+  } @else if (household.isLoading()) {
+    <div class="skeleton title-skeleton"></div>
+  }
+</header>
+
+@if (household.error()) {
+  <p class="field-error">
+    @if (notFound()) {
+      <span i18n="@@household.notFound"
+        >This household does not exist or you are not a member.</span
+      >
+    } @else {
+      <span i18n="@@household.loadError">The household could not be loaded.</span>
+    }
+  </p>
+} @else {
+  <div class="nav-row">
+    <nav
+      class="segmented glass"
+      aria-label="Household sections"
+      i18n-aria-label="@@household.sections"
+    >
+      @for (section of sections; track section.path) {
+        <a class="segment" [routerLink]="section.path" routerLinkActive="active" matRipple>
+          <mat-icon>{{ section.icon }}</mat-icon>
+          <span>{{ section.label }}</span>
+        </a>
+      }
+    </nav>
+    @if (!onFreezePage()) {
+      <a
+        class="cta inline-freeze"
+        routerLink="freeze"
+        matRipple
+        aria-label="Freeze an item"
+        i18n-aria-label="@@household.freezeItem"
+      >
+        <mat-icon>ac_unit</mat-icon>
+        <span i18n="@@household.freeze">Freeze</span>
+      </a>
+    }
+  </div>
+
+  <div class="content">
+    <router-outlet />
+  </div>
+
+  <nav
+    class="bottom-nav glass"
+    aria-label="Household sections"
+    i18n-aria-label="@@household.sections"
+  >
+    @for (section of sections; track section.path) {
+      <a class="tab" [routerLink]="section.path" routerLinkActive="active">
+        <span class="tab-icon"
+          ><mat-icon>{{ section.icon }}</mat-icon></span
+        >
+        <span class="tab-label">{{ section.label }}</span>
+      </a>
+    }
+  </nav>
+
+  @if (onListPage()) {
+    <a
+      class="fab cta"
+      routerLink="freeze"
+      matRipple
+      aria-label="Freeze an item"
+      i18n-aria-label="@@household.freezeItem"
+    >
+      <mat-icon>ac_unit</mat-icon>
+      <span i18n="@@household.freeze">Freeze</span>
+    </a>
+  }
+}

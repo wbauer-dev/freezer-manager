@@ -1,0 +1,372 @@
+// "Fjord" — the visual language of Freezer Manager.
+// Calm, cool neutrals with one muted steel-blue accent and frosted-glass surfaces.
+// Status colours carry meaning: muted teal for fresh, ochre for "eat soon", brick red for expired.
+@use '@angular/material' as mat;
+@use './styles/theme-colors' as frost;
+
+html {
+  color-scheme: light dark;
+  @include mat.theme(
+    (
+      color: (
+        primary: frost.$primary-palette,
+        tertiary: frost.$tertiary-palette,
+        theme-type: color-scheme,
+      ),
+      typography: (
+        plain-family: 'Inter',
+        brand-family: 'Outfit',
+        bold-weight: 600,
+        medium-weight: 500,
+        regular-weight: 400,
+      ),
+      density: 0,
+    )
+  );
+
+  @include mat.form-field-overrides(
+    (
+      outlined-container-shape: 14px,
+    )
+  );
+  @include mat.menu-overrides(
+    (
+      container-shape: 18px,
+    )
+  );
+  @include mat.autocomplete-overrides(
+    (
+      container-shape: 18px,
+    )
+  );
+  @include mat.snack-bar-overrides(
+    (
+      container-shape: 16px,
+    )
+  );
+  @include mat.tooltip-overrides(
+    (
+      container-shape: 10px,
+    )
+  );
+}
+
+:root {
+  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+
+  // One accent, used sparingly: primary actions, the logo, selections.
+  --accent: var(--mat-sys-primary);
+  --on-accent: var(--mat-sys-on-primary);
+  --accent-shadow: 0 4px 14px -6px color-mix(in srgb, var(--mat-sys-primary) 45%, transparent);
+
+  --page-bg: light-dark(#f3f5f7, #12171c);
+  --page-tint: light-dark(rgb(64 98 119 / 0.07), rgb(141 176 199 / 0.05));
+  --glass-bg: light-dark(rgb(255 255 255 / 0.78), rgb(30 37 45 / 0.72));
+  --glass-bg-strong: light-dark(rgb(255 255 255 / 0.92), rgb(34 42 51 / 0.92));
+  --glass-border: light-dark(rgb(16 24 32 / 0.06), rgb(255 255 255 / 0.06));
+  // light-dark() only takes colours; shadows and gradients switch in the media query below.
+  --glass-shadow: 0 1px 2px rgb(16 24 32 / 0.04), 0 8px 24px -14px rgb(16 24 32 / 0.16);
+  --hairline: light-dark(rgb(16 24 32 / 0.08), rgb(255 255 255 / 0.08));
+  --muted: var(--mat-sys-on-surface-variant);
+
+  // Freezer illustrations: brushed steel.
+  --steel: linear-gradient(180deg, #e8ecef, #dfe4e8);
+  --steel-panel: linear-gradient(180deg, #ffffff, #f6f8f9);
+  --steel-handle: light-dark(#c4cbd2, #4b5560);
+  --steel-dashed: light-dark(#c2c9d0, #414b56);
+
+  --fresh: light-dark(#3a7382, #93c2cd);
+  --fresh-bg: light-dark(#e4eff2, rgb(147 194 205 / 0.12));
+  --soon: light-dark(#94671f, #d8b56f);
+  --soon-bg: light-dark(#f5ecda, rgb(216 181 111 / 0.12));
+  --expired: light-dark(#a3473f, #dc958c);
+  --expired-bg: light-dark(#f5e4e1, rgb(220 149 140 / 0.12));
+
+  --radius-xl: 28px;
+  --radius-l: 22px;
+  --radius-m: 16px;
+  --radius-s: 12px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -14px rgb(0 0 0 / 0.55);
+    --steel: linear-gradient(180deg, #232b33, #1d242b);
+    --steel-panel: linear-gradient(180deg, #2e3740, #283039);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--page-bg);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+// ---- Typography ----
+
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  margin: 0;
+  font: var(--mat-sys-label-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.accent-text {
+  color: var(--accent);
+}
+
+// ---- Surfaces ----
+
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-l);
+}
+
+.panel {
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+}
+
+.lift {
+  transition:
+    transform 0.25s var(--ease-out),
+    box-shadow 0.25s var(--ease-out);
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      var(--glass-shadow),
+      0 0 0 1px color-mix(in srgb, var(--mat-sys-primary) 18%, transparent);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.99);
+  }
+}
+
+// ---- Buttons ----
+
+// The primary call to action: solid accent, a quiet shadow.
+.cta.mat-mdc-unelevated-button:not(:disabled),
+a.cta,
+button.cta:not(.mat-mdc-button-base):not(:disabled) {
+  background-color: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--accent-shadow);
+  transition:
+    transform 0.2s var(--ease-out),
+    background-color 0.2s;
+
+  &:hover {
+    background-color: color-mix(in srgb, var(--accent) 88%, var(--mat-sys-on-surface));
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+// ---- Confirmations ----
+
+// Inline question before something that cannot be undone.
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: -4px 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-m);
+  background: var(--expired-bg);
+  animation: rise 0.3s var(--ease-out) both;
+
+  > .mat-icon {
+    color: var(--expired);
+  }
+
+  > span {
+    flex: 1 1 200px;
+  }
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.danger.mat-mdc-unelevated-button:not(:disabled) {
+  background-color: var(--expired);
+  color: #fff;
+}
+
+// ---- Chips & badges ----
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--hairline);
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface);
+  white-space: nowrap;
+
+  .mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--muted);
+  }
+}
+
+.status-fresh {
+  --status: var(--fresh);
+  --status-bg: var(--fresh-bg);
+}
+
+.status-expiring_soon {
+  --status: var(--soon);
+  --status-bg: var(--soon-bg);
+}
+
+.status-expired {
+  --status: var(--expired);
+  --status-bg: var(--expired-bg);
+}
+
+.field-error {
+  margin: 4px 4px 0;
+  color: var(--mat-sys-error);
+  font: var(--mat-sys-body-small);
+}
+
+/* Hidden visually, still reachable for assistive technology and label clicks. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// ---- Motion ----
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// Add to list items with [style.--i]="$index" for a staggered entrance.
+.rise {
+  animation: rise 0.55s var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 45ms);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius-m);
+  background: linear-gradient(
+    100deg,
+    var(--hairline) 30%,
+    color-mix(in srgb, var(--mat-sys-primary) 12%, transparent) 50%,
+    var(--hairline) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+// Page changes cross-fade; elements with a view-transition-name (e.g. food avatars) morph between pages.
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+
+::view-transition-group(*) {
+  animation-duration: 380ms;
+  animation-timing-function: var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+// ---- Material touches ----
+
+.mat-mdc-menu-panel,
+.mat-mdc-autocomplete-panel {
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}

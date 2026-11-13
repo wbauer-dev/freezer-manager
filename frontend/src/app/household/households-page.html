@@ -1,0 +1,92 @@
+<section class="hero rise">
+  <p class="eyebrow">Freezer Manager</p>
+  <h1>{{ greeting() }}</h1>
+  <p class="lead" i18n="@@households.lead">
+    Know what’s in your freezer — and eat it while it’s at its best.
+  </p>
+</section>
+
+@if (households.isLoading()) {
+  <div class="grid">
+    @for (i of [0, 1]; track i) {
+      <div class="skeleton card-skeleton"></div>
+    }
+  </div>
+}
+
+@if (households.error()) {
+  <p class="field-error" i18n="@@households.loadError">
+    Your households could not be loaded. Is the backend running?
+  </p>
+}
+
+@if (households.hasValue()) {
+  @if (households.value().length > 0) {
+    <h2 class="section-title rise" i18n="@@households.title">Your households</h2>
+    <div class="grid">
+      @for (household of households.value(); track household.id) {
+        <a
+          class="household glass lift rise"
+          [style.--i]="$index"
+          [routerLink]="['/households', household.id]"
+          matRipple
+        >
+          <app-initials-avatar [name]="household.name" [size]="52" [square]="true" />
+          <span class="info">
+            <span class="name">{{ household.name }}</span>
+            <span class="meta">
+              <span i18n="@@households.memberCount">{household.memberCount, plural,
+                =1 {1 member}
+                other {{{ household.memberCount }} members}
+              }</span>
+              ·
+              @if (household.myRole === 'OWNER') {
+                <span i18n="@@households.youAreOwner">you are owner</span>
+              } @else {
+                <span i18n="@@households.youAreMember">you are member</span>
+              }
+            </span>
+          </span>
+          <mat-icon class="chevron">arrow_forward</mat-icon>
+        </a>
+      }
+    </div>
+  }
+
+  <section class="found glass rise" [style.--i]="households.value().length + 1">
+    <div class="found-icon"><mat-icon>add_home</mat-icon></div>
+    <div class="found-body">
+      @if (households.value().length === 0) {
+        <h2 i18n="@@households.found.first">Found your first household</h2>
+      } @else {
+        <h2 i18n="@@households.found.another">Found another household</h2>
+      }
+      <p class="hint" i18n="@@households.found.hint">
+        Members of a household share their freezers and foods.
+      </p>
+      <form class="found-form" (submit)="foundHousehold($event)" novalidate>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label i18n="@@households.found.name">Household name</mat-label>
+          <input
+            matInput
+            [formField]="foundForm.name"
+            placeholder="e.g. Miller family"
+            i18n-placeholder="@@households.found.namePlaceholder"
+          />
+        </mat-form-field>
+        <button mat-flat-button class="cta" type="submit" [disabled]="foundForm().submitting()">
+          <mat-icon>arrow_forward</mat-icon>
+          <span i18n="@@households.found.action">Found household</span>
+        </button>
+      </form>
+      @if (foundForm.name().touched()) {
+        @for (error of foundForm.name().errors(); track error.kind) {
+          <p class="field-error">{{ error.message }}</p>
+        }
+      }
+      @for (error of foundForm().errors(); track error.kind) {
+        <p class="field-error">{{ error.message }}</p>
+      }
+    </div>
+  </section>
+}

@@ -1,0 +1,173 @@
+{
+  "language": "de",
+  "name": "Deutsch",
+  "categories": [
+    {
+      "key": "beef-lamb",
+      "emoji": "🥩",
+      "shelfLifeMonths": 10,
+      "name": "Rind & Lamm",
+      "products": [
+        "Rindersteak",
+        "Rinderbraten",
+        "Lammkoteletts"
+      ]
+    },
+    {
+      "key": "pork",
+      "emoji": "🥓",
+      "shelfLifeMonths": 6,
+      "name": "Schwein",
+      "products": [
+        "Schweinekoteletts",
+        "Schweinebraten",
+        "Speck"
+      ]
+    },
+    {
+      "key": "minced-meat",
+      "emoji": "🍔",
+      "shelfLifeMonths": 3,
+      "name": "Hackfleisch",
+      "products": [
+        "Rinderhackfleisch",
+        "Gemischtes Hackfleisch",
+        "Fleischbällchen"
+      ]
+    },
+    {
+      "key": "poultry",
+      "emoji": "🍗",
+      "shelfLifeMonths": 8,
+      "name": "Geflügel",
+      "products": [
+        "Hähnchenbrust",
+        "Hähnchenschenkel",
+        "Putenbrust"
+      ]
+    },
+    {
+      "key": "fish-lean",
+      "emoji": "🐟",
+      "shelfLifeMonths": 6,
+      "name": "Fisch (mager)",
+      "products": [
+        "Kabeljau",
+        "Fischstäbchen",
+        "Garnelen"
+      ]
+    },
+    {
+      "key": "fish-fatty",
+      "emoji": "🍣",
+      "shelfLifeMonths": 3,
+      "name": "Fisch (fett)",
+      "products": [
+        "Lachs",
+        "Makrele"
+      ]
+    },
+    {
+      "key": "vegetables",
+      "emoji": "🥦",
+      "shelfLifeMonths": 12,
+      "name": "Gemüse",
+      "products": [
+        "Erbsen",
+        "Spinat",
+        "Grüne Bohnen",
+        "Brokkoli",
+        "Gemüsemischung"
+      ]
+    },
+    {
+      "key": "fruit",
+      "emoji": "🍓",
+      "shelfLifeMonths": 12,
+      "name": "Obst",
+      "products": [
+        "Erdbeeren",
+        "Himbeeren",
+        "Heidelbeeren",
+        "Mango"
+      ]
+    },
+    {
+      "key": "herbs",
+      "emoji": "🌿",
+      "shelfLifeMonths": 8,
+      "name": "Kräuter",
+      "products": [
+        "Petersilie",
+        "Schnittlauch",
+        "Basilikum"
+      ]
+    },
+    {
+      "key": "bread",
+      "emoji": "🥖",
+      "shelfLifeMonths": 3,
+      "name": "Brot & Gebäck",
+      "products": [
+        "Brot",
+        "Brötchen",
+        "Toastbrot"
+      ]
+    },
+    {
+      "key": "cakes",
+      "emoji": "🍰",
+      "shelfLifeMonths": 3,
+      "name": "Kuchen & Backwaren",
+      "products": [
+        "Kuchen",
+        "Croissants",
+        "Muffins"
+      ]
+    },
+    {
+      "key": "cooked-meals",
+      "emoji": "🍲",
+      "shelfLifeMonths": 3,
+      "name": "Gekochte Gerichte",
+      "products": [
+        "Rindsgulasch",
+        "Lasagne",
+        "Chili con Carne",
+        "Eintopf"
+      ]
+    },
+    {
+      "key": "soups-sauces",
+      "emoji": "🥣",
+      "shelfLifeMonths": 4,
+      "name": "Suppen & Saucen",
+      "products": [
+        "Bolognesesauce",
+        "Tomatensauce",
+        "Gemüsesuppe",
+        "Hühnerbrühe"
+      ]
+    },
+    {
+      "key": "dairy",
+      "emoji": "🧀",
+      "shelfLifeMonths": 6,
+      "name": "Butter & Käse",
+      "products": [
+        "Butter",
+        "Reibkäse"
+      ]
+    },
+    {
+      "key": "other",
+      "emoji": "📦",
+      "shelfLifeMonths": 3,
+      "name": "Sonstiges",
+      "products": [
+        "Speiseeis",
+        "Pizza"
+      ]
+    }
+  ]
+}

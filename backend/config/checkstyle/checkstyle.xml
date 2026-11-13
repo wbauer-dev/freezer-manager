@@ -1,0 +1,268 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+		"-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+		"https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+	Code conventions of the Freezer backend, for main and test sources.
+
+	The rules encode the style the code already follows (Spring Framework-like, as formatted by Eclipse/VS Code Java):
+	tabs for indentation (4 columns wide), lines up to 120 columns, "catch"/"else"/"finally" on a new line after "}",
+	imports grouped as static | java.* | javax.* | org.* | com.* | everything else (app.*, jakarta.*, ...), each sorted,
+	Javadoc on public types.
+	Deliberately NOT required: Javadoc on every method, final parameters and locals, "this." qualifiers.
+
+	Suppress a single finding in code with @SuppressWarnings("checkstyle:<CheckName>") and say why.
+-->
+<module name="Checker">
+
+	<property name="charset" value="UTF-8"/>
+	<property name="severity" value="error"/>
+	<property name="fileExtensions" value="java"/>
+	<!-- Tabs count as 4 columns for line length and indentation, as in the IDE. -->
+	<property name="tabWidth" value="4"/>
+
+	<!-- Filters -->
+
+	<module name="SuppressWarningsFilter"/>
+
+	<!--
+		Text blocks (SQL, JSON) may align their content with spaces, e.g. a continued "select" column list.
+		Leading-space findings are switched off from a line ending with an opening """ to the line with the closing """.
+	-->
+	<module name="SuppressWithPlainTextCommentFilter">
+		<property name="offCommentFormat" value="\S.*&quot;&quot;&quot;\s*$"/>
+		<property name="onCommentFormat" value="^\s*&quot;&quot;&quot;"/>
+		<property name="idFormat" value="^tabIndentation$"/>
+	</module>
+
+	<!--
+		Relaxed for test code:
+		- no Javadoc required on public types (test configurations, fixtures);
+		- JUnit instantiates test classes, even if they only have static members besides @Nested inner classes,
+		  and the dev launcher (TestFreezerBackendApplication) is a class with just a main method.
+	-->
+	<module name="SuppressionSingleFilter">
+		<property name="files" value="[\\/]src[\\/]test[\\/]"/>
+		<property name="checks" value="MissingJavadocType|HideUtilityClassConstructor"/>
+	</module>
+
+	<!-- Files -->
+
+	<module name="NewlineAtEndOfFile">
+		<property name="lineSeparator" value="lf_cr_crlf"/>
+	</module>
+	<module name="RegexpSingleline">
+		<property name="format" value="\s+$"/>
+		<property name="message" value="Line has trailing whitespace."/>
+	</module>
+	<module name="LineLength">
+		<property name="max" value="120"/>
+		<property name="ignorePattern" value="^(package|import) |^\s*(//|\*).*https?://\S+$"/>
+	</module>
+
+	<module name="TreeWalker">
+
+		<module name="SuppressWarningsHolder"/>
+
+		<!-- Indentation: tabs only, one tab per level, two tabs for continuation lines -->
+		<module name="RegexpSinglelineJava">
+			<property name="id" value="tabIndentation"/>
+			<property name="format" value="^\t* +\t*\S"/>
+			<property name="message" value="Line is indented with spaces; indent with tabs only."/>
+			<property name="ignoreComments" value="true"/>
+		</module>
+		<module name="Indentation">
+			<property name="basicOffset" value="4"/>
+			<property name="braceAdjustment" value="0"/>
+			<property name="caseIndent" value="4"/>
+			<property name="throwsIndent" value="8"/>
+			<property name="arrayInitIndent" value="4"/>
+			<property name="lineWrappingIndentation" value="8"/>
+			<property name="forceStrictCondition" value="false"/>
+		</module>
+		<module name="CommentsIndentation"/>
+
+		<!-- Files and types -->
+		<module name="OuterTypeFilename"/>
+		<module name="OneTopLevelClass"/>
+		<module name="NoLineWrap"/>
+
+		<!-- Imports -->
+		<module name="AvoidStarImport"/>
+		<module name="RedundantImport"/>
+		<module name="UnusedImports">
+			<property name="processJavadoc" value="true"/>
+		</module>
+		<module name="IllegalImport"/>
+		<module name="ImportOrder">
+			<!-- The default import order of VS Code Java / Eclipse: java, javax, org, com, then all others. -->
+			<property name="groups" value="java,javax,org,com"/>
+			<property name="ordered" value="true"/>
+			<property name="separated" value="true"/>
+			<property name="option" value="top"/>
+			<property name="sortStaticImportsAlphabetically" value="true"/>
+		</module>
+
+		<!-- Blocks and braces -->
+		<module name="NeedBraces"/>
+		<module name="LeftCurly"/>
+		<module name="RightCurly">
+			<!-- "}" alone on its line before catch, finally and else -->
+			<property name="option" value="alone"/>
+			<property name="tokens"
+					value="LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE"/>
+		</module>
+		<module name="RightCurly">
+			<property name="option" value="alone_or_singleline"/>
+			<property name="tokens"
+					value="CLASS_DEF, INTERFACE_DEF, ENUM_DEF, RECORD_DEF, ANNOTATION_DEF, METHOD_DEF, CTOR_DEF,
+					COMPACT_CTOR_DEF, LITERAL_FOR, LITERAL_WHILE, STATIC_INIT, INSTANCE_INIT"/>
+		</module>
+		<module name="EmptyBlock">
+			<property name="option" value="text"/>
+		</module>
+		<module name="EmptyCatchBlock">
+			<property name="exceptionVariableName" value="expected|ignored"/>
+		</module>
+		<module name="AvoidNestedBlocks">
+			<property name="allowInSwitchCase" value="true"/>
+		</module>
+
+		<!-- Whitespace -->
+		<module name="WhitespaceAround">
+			<property name="allowEmptyConstructors" value="true"/>
+			<property name="allowEmptyMethods" value="true"/>
+			<property name="allowEmptyTypes" value="true"/>
+			<property name="allowEmptyLoops" value="true"/>
+			<property name="allowEmptyLambdas" value="true"/>
+			<property name="allowEmptySwitchBlockStatements" value="true"/>
+			<property name="ignoreEnhancedForColon" value="false"/>
+		</module>
+		<module name="WhitespaceAfter"/>
+		<module name="NoWhitespaceBefore"/>
+		<module name="NoWhitespaceBefore">
+			<property name="tokens" value="DOT, METHOD_REF"/>
+			<property name="allowLineBreaks" value="true"/>
+		</module>
+		<module name="NoWhitespaceAfter">
+			<!-- Without ARRAY_INIT: array initializers are written with inner spaces, e.g. { "a", "b" } -->
+			<property name="tokens"
+					value="AT, INC, DEC, UNARY_MINUS, UNARY_PLUS, BNOT, LNOT, DOT, ARRAY_DECLARATOR, INDEX_OP,
+					METHOD_REF"/>
+		</module>
+		<module name="GenericWhitespace"/>
+		<module name="MethodParamPad"/>
+		<module name="ParenPad"/>
+		<module name="TypecastParenPad"/>
+		<module name="EmptyForIteratorPad"/>
+		<module name="NoWhitespaceBeforeCaseDefaultColon"/>
+		<module name="SingleSpaceSeparator"/>
+		<module name="OperatorWrap"/>
+		<module name="SeparatorWrap">
+			<property name="tokens" value="DOT, METHOD_REF"/>
+			<property name="option" value="nl"/>
+		</module>
+		<module name="SeparatorWrap">
+			<property name="tokens" value="COMMA, SEMI, ELLIPSIS, ARRAY_DECLARATOR, RBRACK"/>
+			<property name="option" value="eol"/>
+		</module>
+		<module name="EmptyLineSeparator">
+			<property name="allowNoEmptyLineBetweenFields" value="true"/>
+			<property name="allowMultipleEmptyLines" value="false"/>
+			<property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
+		</module>
+
+		<!-- Modifiers and annotations -->
+		<module name="ModifierOrder"/>
+		<module name="RedundantModifier"/>
+		<module name="AnnotationLocation"/>
+		<module name="MissingOverride"/>
+		<module name="MissingDeprecated"/>
+
+		<!-- Naming -->
+		<module name="PackageName">
+			<property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+		</module>
+		<module name="TypeName"/>
+		<module name="MethodName"/>
+		<module name="ConstantName"/>
+		<module name="StaticVariableName"/>
+		<module name="MemberName"/>
+		<module name="ParameterName"/>
+		<module name="LambdaParameterName"/>
+		<module name="CatchParameterName"/>
+		<module name="LocalVariableName"/>
+		<module name="LocalFinalVariableName"/>
+		<module name="PatternVariableName"/>
+		<module name="RecordComponentName"/>
+		<module name="ClassTypeParameterName"/>
+		<module name="MethodTypeParameterName"/>
+		<module name="InterfaceTypeParameterName"/>
+		<module name="RecordTypeParameterName"/>
+		<module name="AbbreviationAsWordInName">
+			<property name="allowedAbbreviationLength" value="3"/>
+			<property name="ignoreFinal" value="false"/>
+		</module>
+
+		<!-- Coding -->
+		<module name="OneStatementPerLine"/>
+		<module name="MultipleVariableDeclarations"/>
+		<module name="ArrayTypeStyle"/>
+		<module name="UpperEll"/>
+		<module name="EmptyStatement"/>
+		<module name="EqualsHashCode"/>
+		<module name="CovariantEquals"/>
+		<module name="StringLiteralEquality"/>
+		<module name="SimplifyBooleanExpression"/>
+		<module name="SimplifyBooleanReturn"/>
+		<module name="DefaultComesLast"/>
+		<module name="FallThrough"/>
+		<module name="ModifiedControlVariable"/>
+		<module name="InnerAssignment"/>
+		<module name="IllegalInstantiation">
+			<property name="classes" value="java.lang.Boolean"/>
+		</module>
+		<module name="NoFinalizer"/>
+		<module name="AvoidDoubleBraceInitialization"/>
+		<module name="UnnecessaryParentheses"/>
+		<module name="UnnecessarySemicolonInEnumeration"/>
+		<module name="UnnecessarySemicolonInTryWithResources"/>
+		<module name="UnnecessarySemicolonAfterTypeMemberDeclaration"/>
+		<module name="UnnecessarySemicolonAfterOuterTypeDeclaration"/>
+		<module name="OverloadMethodsDeclarationOrder"/>
+		<module name="ConstructorsDeclarationGrouping"/>
+		<module name="PackageDeclaration"/>
+
+		<!-- Class design -->
+		<module name="FinalClass"/>
+		<module name="HideUtilityClassConstructor"/>
+		<module name="InterfaceIsType"/>
+		<module name="MutableException"/>
+		<module name="VisibilityModifier">
+			<!-- Package-private fields are fine, e.g. injected fields in tests; public fields must be constants. -->
+			<property name="packageAllowed" value="true"/>
+			<property name="protectedAllowed" value="true"/>
+		</module>
+
+		<!-- Javadoc: public types are documented; methods only where it adds something -->
+		<module name="MissingJavadocType">
+			<property name="scope" value="public"/>
+			<property name="skipAnnotations" value="Generated"/>
+		</module>
+		<module name="JavadocMethod">
+			<property name="allowMissingParamTags" value="true"/>
+			<property name="allowMissingReturnTag" value="true"/>
+		</module>
+		<module name="InvalidJavadocPosition"/>
+		<module name="JavadocMissingWhitespaceAfterAsterisk"/>
+		<module name="JavadocLeadingAsteriskAlign"/>
+		<module name="JavadocBlockTagLocation"/>
+		<module name="JavadocContentLocation"/>
+		<module name="JavadocMissingLeadingAsterisk"/>
+		<module name="NonEmptyAtclauseDescription"/>
+		<module name="AtclauseOrder"/>
+		<!-- No SingleLineJavadoc: a lone tag in a one-line comment, e.g. /** @param language ... */, is used on purpose. -->
+
+	</module>
+
+</module>
