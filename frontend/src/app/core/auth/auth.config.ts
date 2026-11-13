@@ -1,14 +1,15 @@
 import { LogLevel, PassedInitialConfig } from 'angular-auth-oidc-client';
 
+import { environment } from '../../../environments/environment';
 import { preferredLanguage } from '../i18n/languages';
 
 /**
- * Login with the local Keycloak (see docker-compose.yml): authorization code flow with PKCE.
+ * Login with Keycloak (see docker-compose.yml): authorization code flow with PKCE.
  * The access token is attached to all calls to the backend API.
  */
 export const authConfig: PassedInitialConfig = {
   config: {
-    authority: 'http://localhost:8081/realms/freezer',
+    authority: environment.authority,
     clientId: 'freezer-frontend',
     // A route of its own, so returning from the login never races with the app's start page.
     redirectUrl: `${window.location.origin}/auth/callback`,
