@@ -1,4 +1,8 @@
-# Local development infrastructure. Ports are bound to localhost only; credentials are for development only.
+# Ports are bound to localhost only; credentials are for development only.
+#
+#   docker compose up -d                          PostgreSQL and Keycloak, for development
+#                                                 (backend and frontend run on the host)
+#   docker compose --profile app up -d --build    the whole app in containers: http://localhost:8000
 name: freezer
 
 services:
@@ -26,10 +30,38 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Tokens always name http://localhost:8081 as issuer, also when the backend container
+      # fetches the signing keys from http://keycloak:8080.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
     ports:
       - "127.0.0.1:8081:8080"
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import:ro
+
+  backend:
+    profiles: [app]
+    build: ./backend
+    image: freezer-backend:local
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/freezer
+      # Signing keys from inside the network; the issuer stays http://localhost:8081/realms/freezer.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/freezer/protocol/openid-connect/certs
+      FREEZER_LABELS_SCANURL: http://localhost:8000/s/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+  frontend:
+    profiles: [app]
+    build: ./frontend
+    image: freezer-frontend:local
+    ports:
+      - "127.0.0.1:8000:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres-data:

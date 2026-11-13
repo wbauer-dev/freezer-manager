@@ -17,11 +17,11 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:4200/*"],
-      "webOrigins": ["http://localhost:4200"],
+      "redirectUris": ["http://localhost:4200/*", "http://localhost:8000/*"],
+      "webOrigins": ["http://localhost:4200", "http://localhost:8000"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*"
+        "post.logout.redirect.uris": "http://localhost:4200/*##http://localhost:8000/*"
       },
       "protocolMappers": [
         {
@@ -61,6 +61,7 @@
   ],
   "users": [
     {
+      "id": "ed306d8d-eb41-4bcc-8e07-29529682bcf2",
       "username": "alice",
       "enabled": true,
       "email": "alice@example.com",
@@ -70,6 +71,7 @@
       "credentials": [{ "type": "password", "value": "alice", "temporary": false }]
     },
     {
+      "id": "b0cc5190-8b00-4db5-9a6e-96e5e841d0c3",
       "username": "bob",
       "enabled": true,
       "email": "bob@example.com",
@@ -79,6 +81,7 @@
       "credentials": [{ "type": "password", "value": "bob", "temporary": false }]
     },
     {
+      "id": "ca0331f8-8be5-4b21-92cc-cfcd00eecec8",
       "username": "carol",
       "enabled": true,
       "email": "carol@example.com",

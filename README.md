@@ -116,6 +116,16 @@ Open http://localhost:4200 and log in as `alice` / `alice` (also: `bob` / `bob`,
 `carol`), or register a new user on the login page. Keycloak's admin console is at
 http://localhost:8081 (`admin` / `admin`).
 
+**Or run everything in containers** — no Java or Node needed, only Docker:
+
+```bash
+docker compose --profile app up -d --build   # app on http://localhost:8000
+```
+
+The backend and the frontend are built from their Dockerfiles; nginx serves the app and forwards
+`/api` to the backend. Without `--profile app`, Compose starts only PostgreSQL and Keycloak for
+development.
+
 > All credentials in this repository are for local development only.
 
 To scan labels with a phone, the phone must reach the app; set `freezer.labels.scan-url` in
