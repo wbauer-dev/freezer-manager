@@ -149,11 +149,18 @@ Invariants and rules:
 1. While `IN_FREEZER`, at least one portion remains; you can't take out more portions than remain.
 2. **No refreezing:** taken-out portions can't be put back. Only exception: the member who
    took them out may undo their latest withdrawal within 10 minutes (wrong item scanned).
+   If that withdrawal consumed the item, it only comes back while its compartment still exists
+   (its freezer is not removed) and its label is not on another item by now (rule 6).
 3. Taking out the last portion makes the item `CONSUMED`.
 4. `BestBefore` is not before `FrozenOn`.
 5. Consumed and discarded items are read-only.
 6. Within a household, a label code belongs to at most one item that is `IN_FREEZER`
-   (enforced by a partial unique index; checked in the domain when freezing).
+   (enforced by a partial unique index). The application service checks it when freezing, and
+   when an undo would bring a consumed item back — it looks up whether another item carries the
+   label, and the item refuses the undo if so. Inventory only knows the codes on items still in
+   the freezer: it would accept the code of a `USED_UP` one-time label sent through the raw API,
+   and Labeling would then report a conflict. Inventory can't ask Labeling, because that would
+   create a module cycle.
 7. The location must be a freezer of the same household (checked by the application service).
 
 **Shelf-life policy (`BestBefore.calculate`):** best-before = frozen on + shelf life of the
