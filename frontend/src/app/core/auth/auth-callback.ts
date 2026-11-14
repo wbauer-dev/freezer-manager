@@ -15,6 +15,7 @@ export class AuthCallback implements OnInit {
   private readonly router = inject(Router);
 
   ngOnInit(): void {
-    this.router.navigateByUrl(takeReturnUrl() ?? '/households', { replaceUrl: true });
+    // The start page leads users with only one household straight into it.
+    this.router.navigateByUrl(takeReturnUrl() ?? '/', { replaceUrl: true });
   }
 }

@@ -1,11 +1,18 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth-guard';
+import { startPageGuard } from './household/start-page-guard';
 
 /**
  * Feature folders follow the backend's bounded contexts (household, catalog, inventory, ...).
  */
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'households' },
+  {
+    // Never shown: leads into the only household, or to the list of households.
+    path: '',
+    pathMatch: 'full',
+    canActivate: [authGuard, startPageGuard],
+    children: [],
+  },
   {
     path: 'auth/callback',
     loadComponent: () => import('./core/auth/auth-callback').then((m) => m.AuthCallback),
