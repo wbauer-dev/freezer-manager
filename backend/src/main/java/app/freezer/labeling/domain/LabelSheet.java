@@ -64,7 +64,7 @@ public class LabelSheet implements AggregateRoot<LabelSheet, HouseholdId> {
 
 	/**
 	 * Places all queued stickers: first on the free positions of the current sheet, then on new sheets. Empties the
-	 * queue; the last sheet printed on becomes the current sheet.
+	 * queue; the last sheet printed on becomes the current sheet. A sheet that is already full gets no page.
 	 */
 	public PrintJob print() {
 		if (queue.isEmpty()) {
@@ -73,13 +73,14 @@ public class LabelSheet implements AggregateRoot<LabelSheet, HouseholdId> {
 		var pages = new ArrayList<List<PrintJob.Placement>>();
 		var page = new ArrayList<PrintJob.Placement>();
 		for (var sticker : queue) {
-			var position = nextFreePosition();
-			if (position < 0) {
-				pages.add(page);
-				page = new ArrayList<>();
+			if (nextFreePosition() < 0) {
+				if (!page.isEmpty()) {
+					pages.add(page);
+					page = new ArrayList<>();
+				}
 				usedPositions.clear();
-				position = nextFreePosition();
 			}
+			var position = nextFreePosition();
 			usedPositions.add(new UsedPosition(position));
 			page.add(new PrintJob.Placement(position, sticker));
 		}

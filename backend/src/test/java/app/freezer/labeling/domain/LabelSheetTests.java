@@ -53,6 +53,30 @@ class LabelSheetTests {
 	}
 
 	@Test
+	void startsOnANewSheetWithoutABlankPageWhenTheCurrentOneIsAlreadyFull() {
+		IntStream.range(0, 24).forEach(sheet::togglePosition);
+		assertThat(sheet.nextFreePosition()).isEqualTo(-1);
+		sheet.enqueue(A);
+		sheet.enqueue(B);
+
+		var job = sheet.print();
+
+		assertThat(job.pages()).containsExactly(List.of(new Placement(0, A), new Placement(1, B)));
+		assertThat(sheet.getUsedPositions()).containsExactly(0, 1);
+	}
+
+	@Test
+	void aSheetFilledByPrintingStaysFullUntilTheNextPrint() {
+		IntStream.range(0, 23).forEach(sheet::togglePosition);
+		sheet.enqueue(A);
+		sheet.print();
+
+		assertThat(sheet.nextFreePosition()).isEqualTo(-1);
+		sheet.enqueue(B);
+		assertThat(sheet.print().pages()).containsExactly(List.of(new Placement(0, B)));
+	}
+
+	@Test
 	void skipsPositionsMarkedAsUnusable() {
 		sheet.togglePosition(0);
 		sheet.togglePosition(1);
