@@ -151,6 +151,9 @@ with Bean Validation for early, friendly error messages.
   (Inventory). Neither backend module calls the other's commands.
 - Login with `angular-auth-oidc-client` (authorization code flow with PKCE). An interceptor adds the
   access token to calls to `/api/`. The dev server proxies `/api` to the backend on port 8080.
+- When the session has ended — the token can no longer be renewed, or the API answers 401 — `SessionExpiry` starts a
+  new login and brings the user back to the same page (at most once per navigation, and not again before the API
+  has accepted a call, so a backend that rejects every token cannot cause a login loop).
 - Angular Material with a custom Material 3 theme ("Fjord": cool neutrals, one muted steel-blue accent,
   frosted-glass surfaces; light and dark mode follow the system). Palette seeds are in
   `src/styles/_theme-colors.scss`, design tokens in `src/styles.scss`. Status colours carry meaning: muted teal

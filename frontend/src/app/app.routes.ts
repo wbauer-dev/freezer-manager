@@ -18,6 +18,7 @@ export const routes: Routes = [
   {
     path: 'households/:householdId',
     canActivate: [authGuard],
+    canActivateChild: [authGuard],
     loadComponent: () => import('./household/household-shell').then((m) => m.HouseholdShell),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'eat-first' },
