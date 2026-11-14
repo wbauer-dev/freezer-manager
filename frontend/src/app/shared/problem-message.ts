@@ -14,6 +14,13 @@ export function problemMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** The message code of a problem the backend reported with one (property `code`), e.g. `catalog.product.changed`. */
+export function problemCode(error: unknown): string | null {
+  return error instanceof HttpErrorResponse && typeof error.error?.code === 'string'
+    ? error.error.code
+    : null;
+}
+
 /**
  * A request for a file (responseType 'blob', e.g. a PDF) gets its problem details as a Blob, too. This reads them, so
  * that problemMessage() finds the detail; any other error is returned as it is.

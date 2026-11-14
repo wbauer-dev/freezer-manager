@@ -104,6 +104,11 @@ with Bean Validation for early, friendly error messages.
   advice: invalid values (`IllegalArgumentException`) → 400, unknown resources → 404, rule
   violations (e.g. `InventoryRuleViolation`) and concurrent changes (optimistic locking) → 409.
 - The `detail` is in the user's language (see [Languages](#languages)).
+- Catalog categories and products carry their `version` to the browser as an optimistic concurrency token: every
+  change sends it back (in the body, or as the `version` parameter of a `DELETE`; required, else 400), and a change to
+  an outdated version gets 409 with a specific message, also as the problem's `code` (`catalog.product.changed`), so
+  nobody silently overwrites what another member changed. The application layer compares it (`ExpectedVersion`);
+  `@Version` still guards the moment between loading and saving.
 
 ### Languages
 

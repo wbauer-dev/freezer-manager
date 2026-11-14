@@ -266,6 +266,8 @@ Each household has its own catalog; every member may change it.
   a language, or empty. Its existence marks the catalog as started.
 - **Rules across aggregates** live in the application service `CatalogAdministration`: unique
   names (backed by unique indexes) and "only categories without products can be removed".
+- **Concurrent edits**: members change categories and products in the version they last saw; a change to an
+  outdated version is rejected instead of overwriting another member's (decision 31).
 - **System defaults** are one JSON file per language (`catalog/templates/<language>.json`); all
   languages have the same categories and shelf lives (guarded by a test). A household's catalog
   starts with them in the language of the member who first opens it; there is no copy of the
@@ -409,7 +411,7 @@ sequenceDiagram
 
 ## 8. Decisions
 
-1–11 agreed on 2026-11-13. 12–20 and 26–30 were decided during implementation and are open for review.
+1–11 agreed on 2026-11-13. 12–20 and 26–31 were decided during implementation and are open for review.
 
 | # | Topic | Decision |
 |---|---|---|
@@ -443,3 +445,4 @@ sequenceDiagram
 | 28 | Product names on the shopping list | A snapshot taken when the entry is added, kept current through `ProductRenamed` (like frozen items, decision 24) |
 | 29 | Invitations | Part of the `Household` aggregate. A link with a code of 128 random bits (base64url, 22 characters), used once, valid for 7 days. Codes are stored as they are, so owners can copy an open invitation again; used and revoked invitations are deleted, expired ones cleared away when an owner invites again (at most 20 open). Unknown, expired, used and revoked codes all get the same 404, so codes can't be probed. Opening the link after logging in joins right away, without a confirmation step (open for review) |
 | 30 | The last owner | A household always has an owner. The last owner makes another member an owner before leaving; only owners remove members (403 otherwise), and they may remove each other, but never the last owner. The only member can't leave: rejecting is simpler than deleting a household whose freezers, items and lists live in other modules (open for review) |
+| 31 | Concurrent catalog edits | Versions travel to the browser: categories and products carry their version, and every change or removal sends back the one the member saw. A stale edit is rejected with 409 and a message that says so (`catalog.product.changed`, `catalog.category.changed`); the page shows the current catalog and the member makes the change again. A change without a version is invalid (400): "don't check" would leave silent overwrites to any client that forgets it. Unlike the shopping list (decision 26), edits are not reapplied – a rename or new shelf life is a decision about what the member saw (open for review) |

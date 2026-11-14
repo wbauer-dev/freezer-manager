@@ -13,12 +13,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.freezer.catalog.ProductId;
 import app.freezer.catalog.application.CatalogAdministration;
 import app.freezer.catalog.application.CatalogSetup;
 import app.freezer.catalog.application.CatalogTemplates;
+import app.freezer.catalog.application.ExpectedVersion;
 import app.freezer.catalog.domain.FoodCategory;
 import app.freezer.catalog.domain.FoodCategoryId;
 import app.freezer.catalog.domain.Product;
@@ -35,6 +37,11 @@ import jakarta.validation.constraints.Size;
  * <p>
  * Requests that read the catalog or add a category start it first, if needed, in a transaction of its own — before and
  * outside the use case's transaction, so that a request never holds two database connections.
+ * <p>
+ * Categories and products carry their {@code version}. Changing or removing one requires the version the member last
+ * saw — in the body, or as the {@code version} parameter of a {@code DELETE}; without it, the request is invalid
+ * (400). If another member changed it in the meantime, the answer is 409, and the member sees the current version
+ * before changing it again. A successful change answers with the new version.
  */
 @RestController
 class CatalogController {
@@ -89,14 +96,15 @@ class CatalogController {
 
 	@PutMapping("/api/households/{householdId}/food-categories/{categoryId}")
 	FoodCategoryView editCategory(HouseholdMember member, @PathVariable UUID categoryId,
-			@Valid @RequestBody CategoryRequest request) {
-		return FoodCategoryView.of(administration.editCategory(member, FoodCategoryId.of(categoryId), request.name(),
-				request.emoji(), request.shelfLifeMonths()));
+			@Valid @RequestBody CategoryChange request) {
+		return FoodCategoryView.of(administration.editCategory(member, FoodCategoryId.of(categoryId),
+				ExpectedVersion.of(request.version()), request.name(), request.emoji(), request.shelfLifeMonths()));
 	}
 
 	@DeleteMapping("/api/households/{householdId}/food-categories/{categoryId}")
-	ResponseEntity<Void> removeCategory(HouseholdMember member, @PathVariable UUID categoryId) {
-		administration.removeCategory(member, FoodCategoryId.of(categoryId));
+	ResponseEntity<Void> removeCategory(HouseholdMember member, @PathVariable UUID categoryId,
+			@RequestParam long version) {
+		administration.removeCategory(member, FoodCategoryId.of(categoryId), ExpectedVersion.of(version));
 		return ResponseEntity.noContent().build();
 	}
 
@@ -116,14 +124,15 @@ class CatalogController {
 
 	@PutMapping("/api/households/{householdId}/products/{productId}")
 	ProductView editProduct(HouseholdMember member, @PathVariable UUID productId,
-			@Valid @RequestBody ProductRequest request) {
-		return ProductView.of(administration.editProduct(member, ProductId.of(productId), request.name(),
-				FoodCategoryId.of(request.categoryId())));
+			@Valid @RequestBody ProductChange request) {
+		return ProductView.of(administration.editProduct(member, ProductId.of(productId),
+				ExpectedVersion.of(request.version()), request.name(), FoodCategoryId.of(request.categoryId())));
 	}
 
 	@DeleteMapping("/api/households/{householdId}/products/{productId}")
-	ResponseEntity<Void> removeProduct(HouseholdMember member, @PathVariable UUID productId) {
-		administration.removeProduct(member, ProductId.of(productId));
+	ResponseEntity<Void> removeProduct(HouseholdMember member, @PathVariable UUID productId,
+			@RequestParam long version) {
+		administration.removeProduct(member, ProductId.of(productId), ExpectedVersion.of(version));
 		return ResponseEntity.noContent().build();
 	}
 
@@ -139,7 +148,18 @@ class CatalogController {
 			@Min(1) @Max(FoodCategory.MAX_SHELF_LIFE_MONTHS) int shelfLifeMonths) {
 	}
 
+	/** @param version the version the member last saw */
+	record CategoryChange(@NotBlank @Size(max = Product.MAX_NAME_LENGTH) String name,
+			@NotBlank @Size(max = FoodCategory.MAX_EMOJI_LENGTH) String emoji,
+			@Min(1) @Max(FoodCategory.MAX_SHELF_LIFE_MONTHS) int shelfLifeMonths, @NotNull Long version) {
+	}
+
 	record ProductRequest(@NotBlank @Size(max = Product.MAX_NAME_LENGTH) String name, @NotNull UUID categoryId) {
+	}
+
+	/** @param version the version the member last saw */
+	record ProductChange(@NotBlank @Size(max = Product.MAX_NAME_LENGTH) String name, @NotNull UUID categoryId,
+			@NotNull Long version) {
 	}
 
 	record LanguageView(String code, String name) {
@@ -149,18 +169,21 @@ class CatalogController {
 	record CatalogView(String startedWith, Instant startedAt) {
 	}
 
-	record ProductView(UUID id, String name, UUID categoryId) {
+	/** @param version to send back with a change */
+	record ProductView(UUID id, String name, UUID categoryId, long version) {
 
 		static ProductView of(Product product) {
-			return new ProductView(product.getId().id(), product.getName(), product.getCategoryId().id());
+			return new ProductView(product.getId().id(), product.getName(), product.getCategoryId().id(),
+					product.getVersion());
 		}
 	}
 
-	record FoodCategoryView(UUID id, String name, String emoji, int shelfLifeMonths) {
+	/** @param version to send back with a change */
+	record FoodCategoryView(UUID id, String name, String emoji, int shelfLifeMonths, long version) {
 
 		static FoodCategoryView of(FoodCategory category) {
 			return new FoodCategoryView(category.getId().id(), category.getName(), category.getEmoji(),
-					category.getShelfLifeMonths());
+					category.getShelfLifeMonths(), category.getVersion());
 		}
 	}
 

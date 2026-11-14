@@ -346,7 +346,7 @@ class InventoryApiIntegrationTests {
 
 		assertThat(mvc.put().uri(api("/products/" + peas)).with(alice).contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{ "name": "Garden peas", "categoryId": "%s" }
+						{ "name": "Garden peas", "categoryId": "%s", "version": 0 }
 						""".formatted(vegetables))).hasStatusOk();
 
 		await().untilAsserted(() -> assertThat(mvc.get().uri(api("/items/" + inFreezer)).with(alice)).bodyJson()
