@@ -29,7 +29,9 @@ discard what got freezer burn — and never again find a mystery box from two wi
 
 ## Features
 
-- **Households** with several members; each user can belong to several households.
+- **Households** with several members; each user can belong to several households. Owners invite
+  people with a link that works once and expires after 7 days, remove members or hand the household
+  over to another owner; anyone can leave.
 - **Freezers and drawers** — set up your freezers, reorder drawers by drag and drop, open a drawer
   to see what is in it.
 - **Freeze** food with portions, optional weight and note; the best-before date follows from the

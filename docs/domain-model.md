@@ -1,6 +1,6 @@
 # Freezer Manager — Domain Model
 
-> Status: **phase 1 complete** — Household & Access, Catalog (one per household, editable),
+> Status: **phase 1 complete** — Household & Access (members, roles, invitations), Catalog (one per household, editable),
 > Freezer Inventory, Labeling and Media are implemented, in English and German. Phase 2 (Shopping) has started:
 > the shared shopping list is implemented; live updates and staples are next. Decisions are recorded in [§ 8](#8-decisions).
 > How the code is organised is described in [architecture.md](architecture.md).
@@ -82,6 +82,7 @@ Module dependencies form a DAG (no cycles): Inventory must never call Labeling o
 |---|---|
 | **Household** | Group of members sharing freezers and a shopping list. All data belongs to exactly one household. |
 | **Member** | A user in a household, with role *Owner* or *Member*. |
+| **Invitation** | A link an owner sends so that someone can join the household. Works once, expires after 7 days. |
 | **Freezer** | A physical freezer of a household. Has one or more compartments. |
 | **Compartment** | A drawer or shelf in a freezer. |
 | **Frozen item** | One physical package or container in a freezer. Carries one label. |
@@ -268,9 +269,19 @@ Each household has its own catalog; every member may change it.
 
 ### 5.4 Household & Access (generic)
 
-- **Aggregate `Household`**: name, members (`UserId`, role), invitations (single use, expire
-  after 7 days), warning period for "expiring soon".
-- Invariants: at least one owner; only owners invite or remove members.
+- **Aggregate `Household`** ✅: name, members (`UserId`, role), invitations (single use, expire
+  after 7 days) ✅, warning period for "expiring soon" (later, decision 13).
+- Invariants ✅, kept by the aggregate: at least one owner; only owners invite or remove members.
+- **Invitations** ✅: an owner creates one and sends its link (`/join/<code>`); the code is 128 random
+  bits, so it can't be guessed (decision 29). Owners see the open invitations and can revoke them. A
+  logged-in user who opens the link joins as *Member* and the invitation is used up. Someone who is
+  already a member simply lands in the household; the invitation stays open for whoever it was meant
+  for. Unknown, expired, used and revoked codes all get the same answer.
+- **Membership changes** ✅: owners remove members and make members owners; any member can leave.
+  The last owner makes someone else an owner before leaving, and the only member can't leave
+  (decision 30).
+- Two people changing the household at once (e.g. accepting the same invitation) collide on its
+  version: one of them gets "changed at the same time" and tries again.
 - Login, passwords and accounts are delegated to an identity provider — not modelled.
 - Tenant isolation: the application layer resolves the current household from the request and
   checks membership before any use case runs.
@@ -418,3 +429,5 @@ sequenceDiagram
 | 26 | Concurrent changes to the shopping list | The whole list stays one aggregate (decision 9). A command that collided with another member's change is applied again to the fresh list, up to three times; this is safe because the list's commands are idempotent or merge |
 | 27 | Free text on the shopping list | Allowed, and never added to the catalog – the catalog describes what goes into the freezer |
 | 28 | Product names on the shopping list | A snapshot taken when the entry is added, kept current through `ProductRenamed` (like frozen items, decision 24) |
+| 29 | Invitations | Part of the `Household` aggregate. A link with a code of 128 random bits (base64url, 22 characters), used once, valid for 7 days. Codes are stored as they are, so owners can copy an open invitation again; used and revoked invitations are deleted, expired ones cleared away when an owner invites again (at most 20 open). Unknown, expired, used and revoked codes all get the same 404, so codes can't be probed. Opening the link after logging in joins right away, without a confirmation step (open for review) |
+| 30 | The last owner | A household always has an owner. The last owner makes another member an owner before leaving; only owners remove members (403 otherwise), and they may remove each other, but never the last owner. The only member can't leave: rejecting is simpler than deleting a household whose freezers, items and lists live in other modules (open for review) |
