@@ -152,8 +152,9 @@ passwords.
 
 > The default credentials in this repository are for local development only.
 
-To scan labels with a phone, the phone must reach the app; set `freezer.labels.scan-url` in
-`backend/src/main/resources/application.yml` to an address it can open.
+Scanning stickers with a phone needs this setup: in development the app runs on localhost, which a
+phone cannot reach (and cannot log in to), so stickers printed there link to
+`http://localhost:4200`. In containers, the QR codes follow `FREEZER_URL`.
 
 ## Tests and code quality
 
