@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.LongFunction;
 
 import org.jmolecules.ddd.annotation.Identity;
 import org.jmolecules.ddd.types.AggregateRoot;
@@ -48,7 +49,9 @@ import app.freezer.sharedkernel.LabelCode;
  * <li>Every item carries a label code. Within a household, a code is on at most one item in the freezer (checked by the
  * application service, backed by a unique index).</li>
  * </ul>
- * Changes are announced with domain events, published when the item is saved.
+ * Changes are announced with domain events, published when the item is saved. Each event carries the item's next
+ * {@linkplain #getRevision() revision}: other contexts receive the events asynchronously, late and possibly out of
+ * order, and tell from the revision whether an event is older than one they have already applied.
  */
 @Table(schema = "inventory", name = "frozen_item")
 public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
@@ -81,6 +84,12 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 	private Instant removedAt;
 	@MappedCollection(idColumn = "frozen_item_id", keyColumn = "position")
 	private final List<Withdrawal> withdrawals;
+	/**
+	 * Counts the item's events: each one carries the next number. Unlike the {@link #version}, which belongs to
+	 * optimistic locking and is only known after saving, it is the item's own and known when the event is created.
+	 * Items from before revisions existed start at 0.
+	 */
+	private long revision;
 	@Version
 	private Long version;
 
@@ -90,7 +99,7 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 	FrozenItem(FrozenItemId id, HouseholdId householdId, Location location, ProductId productId, String productName,
 			String note, LabelCode labelCode, PhotoId photoId, Portions portions, Integer gramsPerPortion,
 			LocalDate frozenOn, BestBefore bestBefore, UserId frozenBy, ItemState state, DiscardReason discardReason,
-			Instant removedAt, List<Withdrawal> withdrawals, Long version) {
+			Instant removedAt, List<Withdrawal> withdrawals, long revision, Long version) {
 		this.id = id;
 		this.householdId = householdId;
 		this.location = location;
@@ -108,6 +117,7 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		this.discardReason = discardReason;
 		this.removedAt = removedAt;
 		this.withdrawals = new ArrayList<>(withdrawals);
+		this.revision = revision;
 		this.version = version;
 	}
 
@@ -135,9 +145,9 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 
 		var item = new FrozenItem(FrozenItemId.random(), householdId, location, productId, productName, validNote(note),
 				labelCode, null, portions, gramsPerPortion, frozenOn, bestBefore, frozenBy, ItemState.IN_FREEZER, null,
-				null, List.of(), null);
-		item.events.add(new ItemFrozen(item.id, householdId, productId, productName, portions.initial(), frozenOn,
-				bestBefore.date(), labelCode));
+				null, List.of(), 0, null);
+		item.announce(revision -> new ItemFrozen(item.id, householdId, productId, productName, portions.initial(),
+				frozenOn, bestBefore.date(), labelCode, revision));
 		return item;
 	}
 
@@ -145,12 +155,13 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		requireInFreezer();
 		portions = portions.takeOut(count);
 		withdrawals.add(new Withdrawal(count, by, byName, now));
-		events.add(new PortionsTakenOut(id, householdId, productId, count, portions.remaining(), labelCode));
+		announce(revision -> new PortionsTakenOut(id, householdId, productId, count, portions.remaining(), labelCode,
+				revision));
 
 		if (portions.isEmpty()) {
 			state = ItemState.CONSUMED;
 			removedAt = now;
-			events.add(new ItemConsumed(id, householdId, productId, labelCode));
+			announce(revision -> new ItemConsumed(id, householdId, productId, labelCode, revision));
 		}
 	}
 
@@ -178,7 +189,8 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 			state = ItemState.IN_FREEZER;
 			removedAt = null;
 		}
-		events.add(new TakeOutUndone(id, householdId, productId, latest.portions(), portions.remaining(), labelCode));
+		announce(revision -> new TakeOutUndone(id, householdId, productId, latest.portions(), portions.remaining(),
+				labelCode, revision));
 	}
 
 	public void discard(DiscardReason reason, Instant now) {
@@ -189,7 +201,7 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		state = ItemState.DISCARDED;
 		discardReason = reason;
 		removedAt = now;
-		events.add(new ItemDiscarded(id, householdId, productId, reason, labelCode));
+		announce(revision -> new ItemDiscarded(id, householdId, productId, reason, labelCode, revision));
 	}
 
 	/**
@@ -273,6 +285,12 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		return trimmed;
 	}
 
+	/** Records an event of this item, stamped with the item's next revision. */
+	private void announce(LongFunction<DomainEvent> event) {
+		revision++;
+		events.add(event.apply(revision));
+	}
+
 	@DomainEvents
 	Collection<DomainEvent> domainEvents() {
 		return List.copyOf(events);
@@ -350,6 +368,11 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 
 	public List<Withdrawal> getWithdrawals() {
 		return Collections.unmodifiableList(withdrawals);
+	}
+
+	/** The revision of the item's latest event; it increases with every event. */
+	public long getRevision() {
+		return revision;
 	}
 
 }

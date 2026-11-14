@@ -71,6 +71,11 @@
 			<artifactId>spring-modulith-starter-jdbc</artifactId>
 		</dependency>
 		<dependency>
+			<!-- EventSerializer: the starter brings it at runtime only; EventPublicationSerializer implements it -->
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-events-core</artifactId>
+		</dependency>
+		<dependency>
 			<!-- Runs Flyway migrations per module (db/migration/<module>) -->
 			<groupId>org.springframework.modulith</groupId>
 			<artifactId>spring-modulith-runtime</artifactId>
