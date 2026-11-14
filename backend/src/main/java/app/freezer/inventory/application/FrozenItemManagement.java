@@ -90,7 +90,7 @@ public class FrozenItemManagement {
 
 	public void undoTakeOut(HouseholdMember member, FrozenItemId itemId) {
 		var item = itemOf(member, itemId);
-		item.undoTakeOut(member.userId(), now(), freezerOf(item));
+		item.undoTakeOut(member.userId(), now(), freezerOf(item), labelOnAnotherItem(item));
 		items.save(item);
 	}
 
@@ -108,7 +108,7 @@ public class FrozenItemManagement {
 				.map(Compartment::name)
 				.orElse(null);
 		return new ItemDetails(item, freezer.getName(), compartmentName, item.expiryStatusOn(today()),
-				item.canUndoTakeOut(member.userId(), now(), freezer));
+				item.canUndoTakeOut(member.userId(), now(), freezer, labelOnAnotherItem(item)));
 	}
 
 	@Transactional(readOnly = true)
@@ -125,6 +125,17 @@ public class FrozenItemManagement {
 	/** The freezer the item is or was stored in. It is kept even when removed, so it always exists. */
 	private Freezer freezerOf(FrozenItem item) {
 		return freezers.findById(item.getLocation().freezerId()).orElseThrow();
+	}
+
+	/**
+	 * Whether another item in the household's freezers carries this item's label. That is only possible while this
+	 * item is out of the freezer, e.g. after its last portion was taken out: the label may have moved on since. Like
+	 * when freezing, this concerns all items of the household, so it is looked up here.
+	 */
+	private boolean labelOnAnotherItem(FrozenItem item) {
+		return !item.isInFreezer() && item.getLabelCode()
+				.map(label -> items.labelInUse(item.getHouseholdId(), label))
+				.orElse(false);
 	}
 
 	private PhotoId photoOf(HouseholdMember member, PhotoId photoId) {

@@ -2,6 +2,8 @@ package app.freezer.inventory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.time.LocalDate;
@@ -16,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -23,6 +26,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.jayway.jsonpath.JsonPath;
 
 import app.freezer.TestcontainersConfiguration;
+import app.freezer.inventory.domain.FrozenItems;
 
 /**
  * Inventory and Catalog through the REST API, with PostgreSQL. Each test works in a fresh household.
@@ -36,6 +40,10 @@ class InventoryApiIntegrationTests {
 
 	@Autowired
 	MockMvcTester mvc;
+
+	/** Behaves like the real repository unless a test says otherwise. */
+	@MockitoSpyBean
+	FrozenItems frozenItems;
 
 	RequestPostProcessor alice;
 	String household;
@@ -198,6 +206,30 @@ class InventoryApiIntegrationTests {
 	}
 
 	@Test
+	void anEatenItemDoesNotComeBackWhenItsLabelIsOnAnotherItemByNow() {
+		var eaten = api("/items/" + id(post(api("/items"), labelledFreezeRequest(peas, "K7Q2M9XA"))));
+		post(eaten + "/take-out", """
+				{ "portions": 1 }
+				""");
+		assertThat(post(api("/items"), labelledFreezeRequest(mincedMeat, "K7Q2M9XA"))).hasStatus(HttpStatus.CREATED);
+
+		assertThat(mvc.get().uri(eaten).with(alice)).bodyJson().extractingPath("$.canUndoTakeOut").isEqualTo(false);
+		assertThat(post(eaten + "/undo-take-out", "")).hasStatus(HttpStatus.CONFLICT).bodyJson()
+				.extractingPath("$.detail").isEqualTo("Label K7Q2-M9XA is already on another item in your freezer.");
+	}
+
+	@Test
+	void whenTwoMembersPutTheSameLabelOnAPackageAtOnceTheSecondLearnsWhy() {
+		// Both pass the check before either has saved its item: the unique index decides.
+		doReturn(false).when(frozenItems).labelInUse(any(), any());
+		assertThat(post(api("/items"), labelledFreezeRequest(peas, "K7Q2M9XA"))).hasStatus(HttpStatus.CREATED);
+
+		assertThat(post(api("/items"), labelledFreezeRequest(mincedMeat, "K7Q2M9XA")))
+				.hasStatus(HttpStatus.CONFLICT).bodyJson()
+				.extractingPath("$.detail").isEqualTo("This label is already on another item in your freezer.");
+	}
+
+	@Test
 	void compartmentsCanBeRearranged() {
 		assertThat(post(api("/freezers/" + kitchen + "/rearrange-compartments"), """
 				{ "compartmentIds": [ "%s", "%s" ] }
@@ -261,6 +293,13 @@ class InventoryApiIntegrationTests {
 		return """
 				{ "productId": "%s", "freezerId": "%s", "compartmentId": "%s", "portions": %d, "frozenOn": "%s" }
 				""".formatted(product, kitchen, compartment, portions, frozenOn);
+	}
+
+	private String labelledFreezeRequest(String product, String labelCode) {
+		return """
+				{ "productId": "%s", "freezerId": "%s", "compartmentId": "%s", "portions": 1, "frozenOn": "%s",
+				  "labelCode": "%s" }
+				""".formatted(product, kitchen, top, TODAY, labelCode);
 	}
 
 	private String productNamed(String name) {

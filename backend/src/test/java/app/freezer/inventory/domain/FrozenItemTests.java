@@ -136,8 +136,8 @@ class FrozenItemTests {
 			item.clearDomainEvents();
 
 			var nineMinutesLater = NOW.plus(Duration.ofMinutes(9));
-			assertThat(item.canUndoTakeOut(ALICE, nineMinutesLater, kitchen)).isTrue();
-			item.undoTakeOut(ALICE, nineMinutesLater, kitchen);
+			assertThat(item.canUndoTakeOut(ALICE, nineMinutesLater, kitchen, false)).isTrue();
+			item.undoTakeOut(ALICE, nineMinutesLater, kitchen, false);
 
 			assertThat(item.getPortions()).isEqualTo(Portions.of(3));
 			assertThat(item.getWithdrawals()).isEmpty();
@@ -150,7 +150,7 @@ class FrozenItemTests {
 			var item = freezeMincedMeat(1);
 			item.takeOut(1, ALICE, "Alice", NOW);
 
-			item.undoTakeOut(ALICE, NOW.plusSeconds(30), kitchen);
+			item.undoTakeOut(ALICE, NOW.plusSeconds(30), kitchen, false);
 
 			assertThat(item.isInFreezer()).isTrue();
 			assertThat(item.getRemovedAt()).isEmpty();
@@ -162,8 +162,8 @@ class FrozenItemTests {
 			item.takeOut(1, ALICE, "Alice", NOW);
 			kitchen.removeCompartment(top);
 
-			assertThat(item.canUndoTakeOut(ALICE, NOW, kitchen)).isFalse();
-			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen))
+			assertThat(item.canUndoTakeOut(ALICE, NOW, kitchen, false)).isFalse();
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen, false))
 					.isInstanceOf(InventoryRuleViolation.class)
 					.hasMessage("inventory.take-out.undo-place-removed");
 			assertThat(item.getState()).isEqualTo(ItemState.CONSUMED);
@@ -175,8 +175,8 @@ class FrozenItemTests {
 			item.takeOut(1, ALICE, "Alice", NOW);
 			kitchen.remove(NOW);
 
-			assertThat(item.canUndoTakeOut(ALICE, NOW, kitchen)).isFalse();
-			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen))
+			assertThat(item.canUndoTakeOut(ALICE, NOW, kitchen, false)).isFalse();
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen, false))
 					.isInstanceOf(InventoryRuleViolation.class)
 					.hasMessage("inventory.take-out.undo-place-removed");
 		}
@@ -187,7 +187,18 @@ class FrozenItemTests {
 			item.takeOut(1, ALICE, "Alice", NOW);
 			var otherFreezer = Freezer.setUp(HOUSEHOLD, "Cellar", List.of("Top"));
 
-			assertThat(item.canUndoTakeOut(ALICE, NOW, otherFreezer)).isFalse();
+			assertThat(item.canUndoTakeOut(ALICE, NOW, otherFreezer, false)).isFalse();
+		}
+
+		@Test
+		void bringsAConsumedItemBackOnlyIfItsLabelIsNotOnAnotherItemByNow() {
+			var item = freezeMincedMeat(1);
+			item.takeOut(1, ALICE, "Alice", NOW);
+
+			assertThat(item.canUndoTakeOut(ALICE, NOW, kitchen, true)).isFalse();
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen, true))
+					.isInstanceOf(InventoryRuleViolation.class)
+					.hasMessage("inventory.label.in-use");
 		}
 
 		@Test
@@ -196,8 +207,8 @@ class FrozenItemTests {
 			item.takeOut(1, ALICE, "Alice", NOW);
 			var elevenMinutesLater = NOW.plus(Duration.ofMinutes(11));
 
-			assertThat(item.canUndoTakeOut(ALICE, elevenMinutesLater, kitchen)).isFalse();
-			assertThatThrownBy(() -> item.undoTakeOut(ALICE, elevenMinutesLater, kitchen))
+			assertThat(item.canUndoTakeOut(ALICE, elevenMinutesLater, kitchen, false)).isFalse();
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, elevenMinutesLater, kitchen, false))
 					.isInstanceOf(InventoryRuleViolation.class)
 					.hasMessage("inventory.take-out.undo-expired");
 		}
@@ -207,8 +218,8 @@ class FrozenItemTests {
 			var item = freezeMincedMeat(3);
 			item.takeOut(1, ALICE, "Alice", NOW);
 
-			assertThat(item.canUndoTakeOut(BOB, NOW, kitchen)).isFalse();
-			assertThatThrownBy(() -> item.undoTakeOut(BOB, NOW, kitchen))
+			assertThat(item.canUndoTakeOut(BOB, NOW, kitchen, false)).isFalse();
+			assertThatThrownBy(() -> item.undoTakeOut(BOB, NOW, kitchen, false))
 					.isInstanceOf(InventoryRuleViolation.class)
 					.hasMessage("inventory.take-out.undo-by-other");
 		}
@@ -217,7 +228,7 @@ class FrozenItemTests {
 		void needsATakeOut() {
 			var item = freezeMincedMeat(3);
 
-			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen))
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen, false))
 					.isInstanceOf(InventoryRuleViolation.class)
 					.hasMessage("inventory.take-out.nothing-to-undo");
 		}
@@ -254,7 +265,8 @@ class FrozenItemTests {
 			item.discard(DiscardReason.EXPIRED, NOW);
 
 			assertThatThrownBy(() -> item.takeOut(1, ALICE, "Alice", NOW)).isInstanceOf(InventoryRuleViolation.class);
-			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen)).isInstanceOf(InventoryRuleViolation.class);
+			assertThatThrownBy(() -> item.undoTakeOut(ALICE, NOW, kitchen, false))
+					.isInstanceOf(InventoryRuleViolation.class);
 			assertThatThrownBy(() -> item.discard(DiscardReason.OTHER, NOW)).isInstanceOf(InventoryRuleViolation.class);
 		}
 	}
