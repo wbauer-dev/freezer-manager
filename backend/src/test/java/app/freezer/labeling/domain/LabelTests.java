@@ -50,6 +50,16 @@ class LabelTests {
 	}
 
 	@Test
+	void attachingAgainToTheSameItemChangesNothing() {
+		var oneTime = Label.oneTimeFor(LabelCode.generate(), HOUSEHOLD, PEAS, NOW);
+		oneTime.attach(PEAS);
+		assertThat(oneTime.getItemId()).contains(PEAS);
+
+		oneTime.release(PEAS);
+		assertThatThrownBy(() -> oneTime.attach(PEAS)).isInstanceOf(LabelingRuleViolation.class);
+	}
+
+	@Test
 	void releaseForAnotherItemIsIgnored() {
 		var label = Label.oneTimeFor(LabelCode.generate(), HOUSEHOLD, PEAS, NOW);
 

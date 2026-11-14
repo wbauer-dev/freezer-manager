@@ -25,6 +25,7 @@ import app.freezer.inventory.FrozenItemId;
 import app.freezer.labeling.application.LabelPrinting;
 import app.freezer.labeling.application.LabelStock;
 import app.freezer.labeling.application.ScanResolution;
+import app.freezer.labeling.application.UnknownLabelException;
 import app.freezer.labeling.domain.Label;
 import app.freezer.labeling.domain.LabelKind;
 import app.freezer.labeling.domain.LabelState;
@@ -51,7 +52,7 @@ class LabelController {
 	/** What a scanned code means. The household comes from the label, so the path does not name one. */
 	@GetMapping("/api/labels/{code}")
 	ScanView scan(@PathVariable String code, CurrentUser user) {
-		return ScanView.of(scans.resolve(user, LabelCode.parse(code)));
+		return ScanView.of(scans.resolve(user, labelCode(code)));
 	}
 
 	/** Persistent labels to choose from when freezing something into a labelled container. */
@@ -83,7 +84,7 @@ class LabelController {
 
 	@PostMapping("/api/households/{householdId}/label-sheet/queue")
 	ResponseEntity<Void> enqueue(HouseholdMember member, @Valid @RequestBody EnqueueRequest request) {
-		printing.enqueue(member, LabelCode.parse(request.code()), request.layout(),
+		printing.enqueue(member, labelCode(request.code()), request.layout(),
 				request.itemId() == null ? null : FrozenItemId.of(request.itemId()));
 		return ResponseEntity.noContent().build();
 	}
@@ -91,7 +92,7 @@ class LabelController {
 	@DeleteMapping("/api/households/{householdId}/label-sheet/queue/{code}")
 	ResponseEntity<Void> dequeue(HouseholdMember member, @PathVariable String code,
 			@RequestParam StickerLayout layout) {
-		printing.dequeue(member, LabelCode.parse(code), layout);
+		printing.dequeue(member, labelCode(code), layout);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -115,6 +116,19 @@ class LabelController {
 	ResponseEntity<Void> togglePosition(HouseholdMember member, @PathVariable int position) {
 		printing.togglePosition(member, position);
 		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * Codes as people type or scan them. Something that cannot be a label code is as unknown as a label of another
+	 * household, so the scanner says "unknown label" in both cases.
+	 */
+	private static LabelCode labelCode(String text) {
+		try {
+			return LabelCode.parse(text);
+		}
+		catch (IllegalArgumentException e) {
+			throw new UnknownLabelException(e);
+		}
 	}
 
 	record ScanView(String code, UUID householdId, LabelKind kind, LabelState state, UUID itemId) {

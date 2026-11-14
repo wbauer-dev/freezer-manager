@@ -20,24 +20,42 @@ import app.freezer.media.application.InvalidImageException;
 import app.freezer.media.domain.PhotoVariant;
 
 /**
- * Decodes the upload, scales it to each variant and writes plain JPEGs. Re-encoding drops all metadata, including
- * the location phone cameras embed.
+ * Decodes the upload, turns it the right way up, scales it to each variant and writes plain JPEGs. Re-encoding drops
+ * all metadata, including the location phone cameras embed — and the orientation, which is why it is applied first.
  */
 @Component
 class Java2dImageProcessor implements ImageProcessor {
 
-	/** Guards against tiny files that decode into gigantic images. */
-	private static final long MAX_PIXELS = 50_000_000L;
+	/**
+	 * Browsers scale photos down to 1600 pixels before uploading them. Only a browser that cannot do that sends the
+	 * original, so this allows what phone cameras take by default (12 to 24 megapixels) and rejects small files that
+	 * claim gigantic images.
+	 */
+	static final long MAX_PIXELS = 25_000_000L;
+
+	/**
+	 * Larger images are decoded with only every second, third, ... pixel, so that their longer side is at most this.
+	 * That bounds the memory a decoded upload takes, and scaling down from twice the largest variant still looks
+	 * smooth.
+	 */
+	static final int MAX_DECODED_SIZE = 2 * PhotoVariant.LARGE.maxSize();
+
 	private static final float JPEG_QUALITY = 0.85f;
 
 	@Override
 	public ProcessedPhoto process(byte[] upload) {
 		var image = read(upload);
 		var variants = new EnumMap<PhotoVariant, byte[]>(PhotoVariant.class);
-		var large = scaleDown(image, PhotoVariant.LARGE.maxSize());
+		// Turning the scaled-down image is cheaper and gives the same result: scaling depends on the longer side only.
+		var large = Orientation.of(upload).turnUpright(scaleDown(image, PhotoVariant.LARGE.maxSize()));
 		variants.put(PhotoVariant.LARGE, jpeg(large));
 		variants.put(PhotoVariant.THUMBNAIL, jpeg(scaleDown(large, PhotoVariant.THUMBNAIL.maxSize())));
 		return new ProcessedPhoto(large.getWidth(), large.getHeight(), variants);
+	}
+
+	/** Every how many pixels one is decoded, in both directions. */
+	static int subsampling(int width, int height) {
+		return Math.ceilDiv(Math.max(width, height), MAX_DECODED_SIZE);
 	}
 
 	private static BufferedImage read(byte[] upload) {
@@ -49,10 +67,15 @@ class Java2dImageProcessor implements ImageProcessor {
 			var reader = readers.next();
 			try {
 				reader.setInput(input, true, true);
-				if ((long) reader.getWidth(0) * reader.getHeight(0) > MAX_PIXELS) {
+				int width = reader.getWidth(0);
+				int height = reader.getHeight(0);
+				if ((long) width * height > MAX_PIXELS) {
 					throw new InvalidImageException("media.photo.too-many-pixels");
 				}
-				return reader.read(0);
+				var parameters = reader.getDefaultReadParam();
+				int step = subsampling(width, height);
+				parameters.setSourceSubsampling(step, step, 0, 0);
+				return reader.read(0, parameters);
 			}
 			finally {
 				reader.dispose();
@@ -68,19 +91,21 @@ class Java2dImageProcessor implements ImageProcessor {
 		}
 	}
 
-	/** Scales down in halving steps, which looks much better than one big step. Never scales up. */
+	/**
+	 * Scales down in halving steps, which looks much better than one big step. Never scales up. The first step draws
+	 * straight from the source, without a full-size copy; the result is opaque RGB, whatever the type of the source.
+	 */
 	private static BufferedImage scaleDown(BufferedImage source, int maxSize) {
 		double factor = Math.min(1.0, (double) maxSize / Math.max(source.getWidth(), source.getHeight()));
 		int targetWidth = Math.max(1, (int) Math.round(source.getWidth() * factor));
 		int targetHeight = Math.max(1, (int) Math.round(source.getHeight() * factor));
 
-		var current = draw(source, source.getWidth(), source.getHeight());
+		var current = source;
 		while (current.getWidth() / 2 >= targetWidth && current.getHeight() / 2 >= targetHeight) {
 			current = draw(current, current.getWidth() / 2, current.getHeight() / 2);
 		}
-		return current.getWidth() == targetWidth && current.getHeight() == targetHeight
-				? current
-				: draw(current, targetWidth, targetHeight);
+		return current.getType() == BufferedImage.TYPE_INT_RGB && current.getWidth() == targetWidth
+				&& current.getHeight() == targetHeight ? current : draw(current, targetWidth, targetHeight);
 	}
 
 	/** Draws onto an opaque RGB canvas; transparent areas become white. */

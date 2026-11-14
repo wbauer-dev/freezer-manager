@@ -228,6 +228,9 @@ its current sheet:
   six boxes, then print all six labels in one go.
 - When the sheet is full, printing continues on a new sheet. Members can start a new sheet
   manually or mark positions as unusable (torn, misprinted).
+- Members and Inventory's events (a new one-time label's sticker) change the sheet at the same time.
+  Like the shopping list (decision 26), a change that collided is applied again to the fresh sheet,
+  up to three times; the sheet's commands are idempotent, so this is safe.
 - **Scan resolution:** `FREE` → offer "freeze new item"; `ATTACHED` → show the item;
   `USED_UP` → "label already used, consumed on …"; unknown or belongs to another household →
   "unknown label" (never reveal other households' labels).
@@ -330,7 +333,8 @@ data of its two variants — *large* (≤ 1600 px) and *thumbnail* (≤ 400 px) 
 adapter, so loading the aggregate never loads megabytes.
 
 - The browser turns a photo the right way up (phones store the orientation separately) and scales
-  it down before uploading.
+  it down before uploading. A browser that cannot decode a photo sends the original; the server
+  then turns a JPEG upright from its Exif orientation itself.
 - The server decodes and re-encodes every upload. That rejects anything that is not an image and
   strips all metadata, including the location phone cameras embed.
 - Other contexts keep a `PhotoId` only and ask `MediaLibrary.contains(household, photo)` before
@@ -415,7 +419,7 @@ sequenceDiagram
 | 16 | Uniqueness of label codes | Random 40-bit codes, unique in practice; Inventory prevents the same code on two items in the freezer, Labeling reports the rare conflict |
 | 17 | Sheet format | 3 × 8 labels of 70 × 37 mm on A4, fixed for now; becomes a household setting later |
 | 18 | Photo storage | PostgreSQL behind a storage port — one container less; S3/MinIO would be another adapter |
-| 19 | Photo processing | Browser fixes orientation and scales down; server re-encodes (validation, no metadata) and makes the thumbnail |
+| 19 | Photo processing | Browser fixes orientation and scales down; server re-encodes (validation, no metadata) and makes the thumbnail. If the browser can't, it sends the original: the server applies a JPEG's Exif orientation before re-encoding and accepts up to 25 megapixels, decoded at no more than twice the large size |
 | 20 | Unused photos | Photos uploaded but never attached to an item are kept for now; a clean-up job comes later |
 | 21 | Labels vs. stickers | A label is only the identity (QR code); what is printed is a sticker with one of three layouts. "Reusable" labels are now called *persistent* (agreed 2026-11-13) |
 | 22 | Catalog ownership | One catalog per household, categories included; every member may change it, no extra role (agreed 2026-11-13) |

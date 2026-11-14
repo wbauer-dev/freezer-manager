@@ -2,6 +2,8 @@ package app.freezer.labeling;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.io.UnsupportedEncodingException;
@@ -20,8 +22,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -29,6 +35,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.jayway.jsonpath.JsonPath;
 
 import app.freezer.TestcontainersConfiguration;
+import app.freezer.labeling.domain.LabelSheets;
 
 /**
  * Inventory and Labeling working together through events, observed via the REST API.
@@ -42,6 +49,9 @@ class LabelingApiIntegrationTests {
 
 	@Autowired
 	MockMvcTester mvc;
+
+	@MockitoSpyBean
+	LabelSheets sheets;
 
 	RequestPostProcessor alice;
 	String household;
@@ -139,6 +149,75 @@ class LabelingApiIntegrationTests {
 
 		assertThat(mvc.get().uri("/api/labels/" + code).with(user("carol-" + UUID.randomUUID())))
 				.hasStatus(HttpStatus.NOT_FOUND);
+	}
+
+	@Test
+	void aMemberOfAnotherHouseholdCannotReachItsLabelsOrSheet() {
+		var item = post(api("/items"), freezeRequest(1, null));
+		var code = json(item, "$.labelCode");
+		await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(get(api("/label-sheet")))
+				.bodyJson().extractingPath("$.queue[*].code").isEqualTo(List.of(code)));
+		var persistent = json(post(api("/labels/persistent"), "{ \"count\": 1 }"), "$[0]");
+
+		// Bob is a real member — of his own household.
+		var bob = user("bob-" + UUID.randomUUID());
+		var bobsHousehold = json(mvc.post().uri("/api/households").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"name\": \"Bob's flat\" }").exchange(), "$.id");
+		var bobs = "/api/households/" + bobsHousehold;
+
+		assertThat(mvc.get().uri("/api/labels/" + code).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri("/api/labels/" + persistent).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(bobs + "/label-sheet/queue").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"code\": \"%s\", \"layout\": \"QR_ONLY\" }".formatted(persistent)))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(bobs + "/label-sheet/queue").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"code\": \"%s\", \"layout\": \"CONTENT_ONLY\", \"itemId\": \"%s\" }"
+						.formatted(code, json(item, "$.id"))))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(bobs + "/label-sheet/queue/" + code + "?layout=QR_AND_CONTENT").with(bob))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri(bobs + "/label-sheet").with(bob)).bodyJson().extractingPath("$.queue")
+				.isEqualTo(List.of());
+		assertThat(mvc.get().uri(bobs + "/labels/free").with(bob)).bodyJson().isEqualTo("[]");
+		assertThat(mvc.post().uri(bobs + "/label-sheet/print").with(bob)).hasStatus(HttpStatus.CONFLICT);
+
+		// Under Alice's household, Bob is no member.
+		assertThat(mvc.get().uri(api("/label-sheet")).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(api("/label-sheet/queue/" + code + "?layout=QR_AND_CONTENT")).with(bob))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(api("/label-sheet/print")).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+
+		assertThat(get(api("/label-sheet"))).bodyJson().extractingPath("$.queue[*].code")
+				.isEqualTo(List.of(code, persistent));
+	}
+
+	@Test
+	void codesThatCannotBeLabelsAreUnknownLabels() {
+		assertThat(get("/api/labels/K7Q2")).hasStatus(HttpStatus.NOT_FOUND).bodyJson().extractingPath("$.detail")
+				.isEqualTo("Unknown label.");
+		assertThat(post(api("/label-sheet/queue"), """
+				{ "code": "not a code", "layout": "QR_ONLY" }
+				""")).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(api("/label-sheet/queue/K7Q2-M9XU?layout=QR_ONLY")).with(alice))
+				.hasStatus(HttpStatus.NOT_FOUND);
+
+		// Typed when freezing, the code is explained in the member's language.
+		assertThat(mvc.post().uri(api("/items")).with(alice).header(HttpHeaders.ACCEPT_LANGUAGE, "de")
+				.contentType(MediaType.APPLICATION_JSON).content(freezeRequest(1, "K7Q2")))
+				.hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.detail")
+				.isEqualTo("Der Code eines Etiketts hat 8 Zeichen, z. B. K7Q2-M9XA.");
+	}
+
+	@Test
+	void aSheetThatKeepsChangingIsAConflict() {
+		var newSheet = api("/label-sheet/new-sheet");
+		for (var collision : List.of(new OptimisticLockingFailureException("collided"),
+				new DuplicateKeyException("created at the same time"))) {
+			doThrow(collision).when(sheets).save(any());
+
+			assertThat(post(newSheet, "")).hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.detail")
+					.isEqualTo("Someone else changed this at the same time. Please reload and try again.");
+		}
 	}
 
 	private String freezeRequest(int portions, String labelCode) {

@@ -3,6 +3,8 @@ package app.freezer.media;
 import static app.freezer.media.TestImages.png;
 import static app.freezer.media.TestImages.read;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.io.UnsupportedEncodingException;
@@ -10,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,13 +22,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.jayway.jsonpath.JsonPath;
 
 import app.freezer.TestcontainersConfiguration;
+import app.freezer.media.application.ImageProcessor;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,6 +40,9 @@ class MediaApiIntegrationTests {
 
 	@Autowired
 	MockMvcTester mvc;
+
+	@MockitoSpyBean
+	ImageProcessor processor;
 
 	RequestPostProcessor alice;
 	String household;
@@ -63,16 +72,42 @@ class MediaApiIntegrationTests {
 
 	@Test
 	void photosAreInvisibleOutsideTheHousehold() {
-		var photo = photoUri(household, json(upload(alice, household, png(400, 300, false)), "$.id"));
+		var photoId = json(upload(alice, household, png(400, 300, false)), "$.id");
 		var carol = user("carol-" + UUID.randomUUID());
 
-		assertThat(mvc.get().uri(photo).with(carol)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri(photoUri(household, photoId)).with(carol)).hasStatus(HttpStatus.NOT_FOUND);
+
+		// A member of another household doesn't get it under their own household either.
+		var bob = user("bob-" + UUID.randomUUID());
+		var bobsHousehold = createHousehold(bob);
+		assertThat(mvc.get().uri(photoUri(bobsHousehold, photoId)).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri(photoUri(bobsHousehold, photoId) + "?size=LARGE").with(bob))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri(photoUri(household, photoId)).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
 	}
 
 	@Test
 	void rejectsFilesThatAreNoPhotos() {
 		assertThat(upload(alice, household, "<svg/>".getBytes(StandardCharsets.UTF_8)))
 				.hasStatus(HttpStatus.BAD_REQUEST);
+	}
+
+	@Test
+	void rejectsEmptyFilesAsEmpty() {
+		assertThat(upload(alice, household, new byte[0])).hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+				.extractingPath("$.detail").isEqualTo("The uploaded file is empty.");
+	}
+
+	@Test
+	void photosAreProcessedWithoutHoldingADatabaseTransaction() {
+		var inTransaction = new AtomicBoolean(true);
+		doAnswer(invocation -> {
+			inTransaction.set(TransactionSynchronizationManager.isActualTransactionActive());
+			return invocation.callRealMethod();
+		}).when(processor).process(any());
+
+		assertThat(upload(alice, household, png(800, 600, false))).hasStatus(HttpStatus.CREATED);
+		assertThat(inTransaction).isFalse();
 	}
 
 	@Test
