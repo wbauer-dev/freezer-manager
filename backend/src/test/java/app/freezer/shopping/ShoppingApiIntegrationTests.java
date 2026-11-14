@@ -98,7 +98,7 @@ class ShoppingApiIntegrationTests {
 		post(api("/shopping-list/entries"), "{ \"productId\": \"%s\" }".formatted(peas));
 
 		assertThat(mvc.put().uri(api("/products/" + peas)).with(alice).contentType(MediaType.APPLICATION_JSON)
-				.content("{ \"name\": \"Garden peas\", \"categoryId\": \"%s\" }".formatted(vegetables)))
+				.content("{ \"name\": \"Garden peas\", \"categoryId\": \"%s\", \"version\": 0 }".formatted(vegetables)))
 				.hasStatusOk();
 
 		await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(get(api("/shopping-list"))).bodyJson()

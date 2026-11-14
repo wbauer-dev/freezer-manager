@@ -86,6 +86,11 @@ public class FoodCategory implements AggregateRoot<FoodCategory, FoodCategoryId>
 		return Period.ofMonths(shelfLifeMonths);
 	}
 
+	/** Counts the saved changes; {@code null} until the category is saved for the first time. */
+	public Long getVersion() {
+		return version;
+	}
+
 	private static String validEmoji(String emoji) {
 		var trimmed = emoji == null ? "" : emoji.strip();
 		if (trimmed.isEmpty() || trimmed.length() > MAX_EMOJI_LENGTH) {
