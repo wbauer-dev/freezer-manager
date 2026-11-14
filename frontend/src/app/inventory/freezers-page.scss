@@ -76,6 +76,7 @@
 .drawer {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-height: 56px;
@@ -147,6 +148,38 @@
   border-radius: 4px;
   transform: translateX(-50%);
   background: var(--steel-handle);
+}
+
+// Name and count open the drawer: the list of what is inside appears below.
+.drawer-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  .chevron {
+    flex: none;
+    margin-left: -4px;
+    color: var(--muted);
+  }
 }
 
 .drawer-name {
@@ -225,4 +258,117 @@
   border-top: 3px solid var(--steel-handle);
   font: var(--mat-sys-label-medium);
   animation: rise 0.35s var(--ease-spring) both;
+}
+
+// ---- What is in a drawer ----
+
+.drawer-items {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: grid;
+  // Long names shrink (with an ellipsis) instead of widening the drawer.
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 4px 0 2px -4px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--hairline);
+  list-style: none;
+}
+
+.drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--hairline);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+  }
+}
+
+.item-emoji {
+  flex: none;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-portions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font: var(--mat-sys-label-medium);
+
+  .mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+  }
+}
+
+.item-when {
+  min-width: 5.5rem;
+  color: var(--status);
+  font: var(--mat-sys-label-medium);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+// Phones: tighter rows, so drawer names keep their room next to the count and the arrow.
+@media (max-width: 480px) {
+  .drawer {
+    gap: 6px;
+  }
+
+  .drawer-toggle {
+    gap: 6px;
+
+    .chevron {
+      margin: 0 -4px 0 -6px;
+    }
+  }
+
+  // The food's name gets the whole first line; portions and time left go below it.
+  .drawer-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'emoji name name'
+      'emoji portions when';
+    gap: 0 10px;
+  }
+
+  .item-emoji {
+    grid-area: emoji;
+  }
+
+  .item-name {
+    grid-area: name;
+  }
+
+  .item-portions {
+    grid-area: portions;
+  }
+
+  .item-when {
+    grid-area: when;
+    min-width: 0;
+  }
 }

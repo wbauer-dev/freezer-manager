@@ -33,7 +33,9 @@ export interface EatFirstEntry {
   frozenOn: string;
   bestBefore: string;
   expiryStatus: ExpiryStatus;
+  freezerId: string;
   freezerName: string;
+  compartmentId: string;
   compartmentName: string;
 }
 

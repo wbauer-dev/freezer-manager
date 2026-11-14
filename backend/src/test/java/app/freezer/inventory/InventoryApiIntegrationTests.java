@@ -113,10 +113,10 @@ class InventoryApiIntegrationTests {
 				.isEqualTo(List.of("Minced beef", "Peas"));
 		assertThat(eatFirst).bodyJson().isLenientlyEqualTo("""
 				[ { "productName": "Minced beef", "remainingPortions": 1, "bestBefore": "%s", "expiryStatus": "FRESH",
-				    "freezerName": "Kitchen", "compartmentName": "Top" },
+				    "freezerId": "%s", "freezerName": "Kitchen", "compartmentId": "%s", "compartmentName": "Top" },
 				  { "productName": "Peas", "remainingPortions": 3, "bestBefore": "%s", "expiryStatus": "FRESH",
-				    "freezerName": "Kitchen", "compartmentName": "Bottom" } ]
-				""".formatted(TODAY.plusMonths(3), TODAY.plusMonths(12)));
+				    "freezerId": "%s", "freezerName": "Kitchen", "compartmentId": "%s", "compartmentName": "Bottom" } ]
+				""".formatted(TODAY.plusMonths(3), kitchen, top, TODAY.plusMonths(12), kitchen, bottom));
 	}
 
 	@Test

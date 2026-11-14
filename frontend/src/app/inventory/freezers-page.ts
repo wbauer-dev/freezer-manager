@@ -15,11 +15,16 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterLink } from '@angular/router';
 import { Observable, firstValueFrom } from 'rxjs';
 
+import { emojiByProduct } from '../catalog/catalog-lookup';
+import { FoodCategory, Product } from '../catalog/catalog.model';
+import { timeLeft } from '../shared/dates';
+import { UNKNOWN_FOOD } from '../shared/food';
 import { problemMessage } from '../shared/problem-message';
 import { InventoryApi } from './inventory-api';
-import { Compartment, Freezer } from './inventory.model';
+import { Compartment, EatFirstEntry, Freezer } from './inventory.model';
 
 const DEFAULT_COMPARTMENTS = $localize`:@@freezers.defaultDrawers:Top drawer, Middle drawer, Bottom drawer`;
 const MAX_NAME_LENGTH = 40;
@@ -37,6 +42,7 @@ const MAX_NAME_LENGTH = 40;
     MatIconModule,
     MatInputModule,
     MatTooltipModule,
+    RouterLink,
   ],
   templateUrl: './freezers-page.html',
   styleUrl: './freezers-page.scss',
@@ -49,6 +55,37 @@ export class FreezersPage {
 
   protected readonly freezers = httpResource<Freezer[]>(
     () => `/api/households/${this.householdId()}/freezers`,
+  );
+  /** Everything in the freezers (Inventory's eat-first list), to show what is in each drawer. */
+  private readonly items = httpResource<EatFirstEntry[]>(
+    () => `/api/households/${this.householdId()}/eat-first`,
+  );
+  private readonly products = httpResource<Product[]>(
+    () => `/api/households/${this.householdId()}/products`,
+  );
+  private readonly categories = httpResource<FoodCategory[]>(
+    () => `/api/households/${this.householdId()}/food-categories`,
+  );
+
+  /** The drawers whose contents are shown. */
+  protected readonly opened = signal<ReadonlySet<string>>(new Set());
+
+  /** The items in each drawer, the ones to eat first at the top (the order of the eat-first list). */
+  private readonly contents = computed(() => {
+    const byCompartment = new Map<string, EatFirstEntry[]>();
+    for (const entry of this.items.hasValue() ? this.items.value() : []) {
+      byCompartment.set(entry.compartmentId, [
+        ...(byCompartment.get(entry.compartmentId) ?? []),
+        entry,
+      ]);
+    }
+    return byCompartment;
+  });
+  private readonly emojis = computed(() =>
+    emojiByProduct(
+      this.products.hasValue() ? this.products.value() : [],
+      this.categories.hasValue() ? this.categories.value() : [],
+    ),
   );
 
   protected readonly setUpModel = signal({ name: '', compartments: DEFAULT_COMPARTMENTS });
@@ -140,6 +177,37 @@ export class FreezersPage {
 
   protected itemCount(freezer: Freezer): number {
     return freezer.compartments.reduce((sum, compartment) => sum + compartment.itemCount, 0);
+  }
+
+  protected isOpen(compartment: Compartment): boolean {
+    return this.opened().has(compartment.id);
+  }
+
+  /** Shows or hides what is in a drawer. */
+  protected toggle(compartment: Compartment): void {
+    this.opened.update((opened) => {
+      const next = new Set(opened);
+      if (!next.delete(compartment.id)) {
+        next.add(compartment.id);
+      }
+      return next;
+    });
+  }
+
+  protected contentsOf(compartment: Compartment): EatFirstEntry[] {
+    return this.contents().get(compartment.id) ?? [];
+  }
+
+  protected emojiOf(entry: EatFirstEntry): string {
+    return this.emojis().get(entry.productId) || UNKNOWN_FOOD;
+  }
+
+  protected timeLeft(entry: EatFirstEntry): string {
+    return timeLeft(entry.bestBefore);
+  }
+
+  protected statusClass(entry: EatFirstEntry): string {
+    return 'status-' + entry.expiryStatus.toLowerCase();
   }
 
   protected removeLabel(name: string): string {
