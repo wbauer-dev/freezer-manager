@@ -43,7 +43,7 @@
     "catalog.reset.emptyHint": "Den eigenen Katalog von Grund auf anlegen",
     "catalog.reset.language": "Sprache",
     "catalog.reset.languageLabel": "Standardkatalog auf",
-    "catalog.reset.confirm": "Alle {$INTERPOLATION} Kategorien und {$INTERPOLATION_1} Lebensmittel werden ersetzt. Neu beginnen?",
+    "catalog.reset.confirm": "{VAR_PLURAL_2, plural, =1 {1 Kategorie und {VAR_PLURAL, plural, =1 {1 Lebensmittel} other {{INTERPOLATION} Lebensmittel}} werden ersetzt. Neu beginnen?} other {Alle {INTERPOLATION_1} Kategorien und {VAR_PLURAL_1, plural, =1 {1 Lebensmittel} other {{INTERPOLATION} Lebensmittel}} werden ersetzt. Neu beginnen?}}",
     "catalog.reset.action": "Neu beginnen",
     "catalog.reset.ask": "Neu beginnen…",
     "catalog.product.rename": "Umbenennen",
