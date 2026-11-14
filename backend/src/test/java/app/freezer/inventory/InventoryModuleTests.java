@@ -98,7 +98,11 @@ class InventoryModuleTests {
 		scenario.stimulate(() -> items.takeOut(alice, itemId, 1))
 				.andWaitForEventOfType(ItemConsumed.class)
 				.matching(event -> event.itemId().equals(itemId))
-				.toArriveAndVerify(event -> assertThat(event.productId()).isEqualTo(peas));
+				.toArriveAndVerify(event -> {
+					assertThat(event.productId()).isEqualTo(peas);
+					// The item was saved and loaded in between: frozen (1), portions taken out (2), consumed (3).
+					assertThat(event.revision()).isEqualTo(3);
+				});
 	}
 
 	@Test

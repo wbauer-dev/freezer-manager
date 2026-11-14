@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.modulith.events.core.EventSerializer;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -32,11 +33,15 @@ import app.freezer.household.HouseholdAccess;
 import app.freezer.household.HouseholdId;
 import app.freezer.household.HouseholdMembers;
 import app.freezer.household.UserId;
+import app.freezer.inventory.DiscardReason;
 import app.freezer.inventory.FrozenItemDirectory;
 import app.freezer.inventory.FrozenItemId;
 import app.freezer.inventory.ItemConsumed;
 import app.freezer.inventory.ItemDescription;
+import app.freezer.inventory.ItemDiscarded;
 import app.freezer.inventory.ItemFrozen;
+import app.freezer.inventory.PortionsTakenOut;
+import app.freezer.inventory.TakeOutUndone;
 import app.freezer.labeling.application.FreeLabel;
 import app.freezer.labeling.application.LabelPrinting;
 import app.freezer.labeling.domain.Label;
@@ -47,6 +52,8 @@ import app.freezer.labeling.domain.LabelState;
 import app.freezer.labeling.domain.Labels;
 import app.freezer.labeling.domain.Sticker;
 import app.freezer.sharedkernel.LabelCode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Bootstraps Labeling alone and drives it with Inventory's events only — no Inventory code runs. This is the whole
@@ -73,6 +80,9 @@ class LabelingModuleTests {
 	@Autowired
 	LabelPrinting printing;
 
+	@Autowired
+	EventSerializer serializer;
+
 	@Test
 	void newItemGetsAOneTimeLabelWhoseStickerWaitsInThePrintQueue(Scenario scenario) {
 		var household = HouseholdId.random();
@@ -80,7 +90,7 @@ class LabelingModuleTests {
 		var item = FrozenItemId.random();
 		var product = ProductId.random();
 
-		scenario.publish(new ItemFrozen(item, household, product, "Peas", 3, TODAY, TODAY.plusMonths(12), code))
+		scenario.publish(new ItemFrozen(item, household, product, "Peas", 3, TODAY, TODAY.plusMonths(12), code, 1))
 				.andWaitForStateChange(() -> labels.findById(code))
 				.andVerify(label -> {
 					assertThat(label).hasValueSatisfying(it -> {
@@ -99,7 +109,7 @@ class LabelingModuleTests {
 		collideOnceOnTheSheet();
 
 		scenario.publish(new ItemFrozen(FrozenItemId.random(), household, ProductId.random(), "Peas", 3, TODAY,
-				TODAY.plusMonths(12), code))
+				TODAY.plusMonths(12), code, 1))
 				.andWaitForStateChange(() -> labels.findById(code))
 				.andVerify(label -> {
 					assertThat(label).isPresent();
@@ -146,14 +156,43 @@ class LabelingModuleTests {
 		var item = FrozenItemId.random();
 		var product = ProductId.random();
 
-		scenario.publish(new ItemFrozen(item, household, product, "Peas", 1, TODAY, TODAY.plusMonths(12), code))
+		scenario.publish(new ItemFrozen(item, household, product, "Peas", 1, TODAY, TODAY.plusMonths(12), code, 1))
 				.andWaitForStateChange(() -> labels.findById(code))
 				.andVerify(label -> assertThat(label).isPresent());
 
-		scenario.publish(new ItemConsumed(item, household, product, code))
+		scenario.publish(new ItemConsumed(item, household, product, code, 3))
 				.andWaitForStateChange(() -> labels.findById(code).map(Label::getState),
 						state -> state.filter(LabelState.USED_UP::equals).isPresent())
 				.andVerify(state -> assertThat(state).contains(LabelState.USED_UP));
+	}
+
+	/** Publications recorded before events carried revisions have none; they are read as unknown (0). */
+	@Test
+	void eventsRecordedBeforeRevisionsExistedAreReadWithAnUnknownRevision() {
+		var household = HouseholdId.random();
+		var code = LabelCode.generate();
+		var item = FrozenItemId.random();
+		var product = ProductId.random();
+
+		assertThat(readWithoutRevision(
+				new ItemFrozen(item, household, product, "Peas", 1, TODAY, TODAY.plusMonths(12), code, 1)))
+				.isEqualTo(new ItemFrozen(item, household, product, "Peas", 1, TODAY, TODAY.plusMonths(12), code, 0));
+		assertThat(readWithoutRevision(new PortionsTakenOut(item, household, product, 1, 0, code, 2)))
+				.isEqualTo(new PortionsTakenOut(item, household, product, 1, 0, code, 0));
+		assertThat(readWithoutRevision(new ItemConsumed(item, household, product, code, 3)))
+				.isEqualTo(new ItemConsumed(item, household, product, code, 0));
+		assertThat(readWithoutRevision(new TakeOutUndone(item, household, product, 1, 1, code, 4)))
+				.isEqualTo(new TakeOutUndone(item, household, product, 1, 1, code, 0));
+		assertThat(readWithoutRevision(new ItemDiscarded(item, household, product, DiscardReason.EXPIRED, code, 5)))
+				.isEqualTo(new ItemDiscarded(item, household, product, DiscardReason.EXPIRED, code, 0));
+	}
+
+	/** Serializes the event like the publication registry does, removes its revision and reads it back. */
+	@SuppressWarnings("unchecked")
+	private <T> T readWithoutRevision(T event) {
+		var json = (ObjectNode) JsonMapper.builder().build().readTree(serializer.serialize(event).toString());
+		assertThat(json.remove("revision")).isNotNull();
+		return serializer.deserialize(json.toString(), (Class<T>) event.getClass());
 	}
 
 	/** A persistent label that held the item and is free again. */
