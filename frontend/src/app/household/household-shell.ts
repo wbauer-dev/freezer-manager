@@ -70,6 +70,11 @@ export class HouseholdShell {
     /\/(eat-first|freezers|catalog|labels|members)$/.test(this.url()),
   );
 
+  /** Loads the household again, e.g. after a member was removed on the members page. */
+  refresh(): void {
+    this.household.reload();
+  }
+
   protected notFound(): boolean {
     const error = this.household.error();
     return error instanceof HttpErrorResponse && error.status === 404;
