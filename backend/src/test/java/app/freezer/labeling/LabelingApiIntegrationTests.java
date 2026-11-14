@@ -24,6 +24,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -148,6 +149,23 @@ class LabelingApiIntegrationTests {
 
 		assertThat(mvc.get().uri("/api/labels/" + code).with(user("carol-" + UUID.randomUUID())))
 				.hasStatus(HttpStatus.NOT_FOUND);
+	}
+
+	@Test
+	void codesThatCannotBeLabelsAreUnknownLabels() {
+		assertThat(get("/api/labels/K7Q2")).hasStatus(HttpStatus.NOT_FOUND).bodyJson().extractingPath("$.detail")
+				.isEqualTo("Unknown label.");
+		assertThat(post(api("/label-sheet/queue"), """
+				{ "code": "not a code", "layout": "QR_ONLY" }
+				""")).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(api("/label-sheet/queue/K7Q2-M9XU?layout=QR_ONLY")).with(alice))
+				.hasStatus(HttpStatus.NOT_FOUND);
+
+		// Typed when freezing, the code is explained in the member's language.
+		assertThat(mvc.post().uri(api("/items")).with(alice).header(HttpHeaders.ACCEPT_LANGUAGE, "de")
+				.contentType(MediaType.APPLICATION_JSON).content(freezeRequest(1, "K7Q2")))
+				.hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.detail")
+				.isEqualTo("Der Code eines Etiketts hat 8 Zeichen, z. B. K7Q2-M9XA.");
 	}
 
 	@Test

@@ -53,8 +53,8 @@ class MessagesTests {
 		for (var bundle : BUNDLES) {
 			known.addAll(load(bundle).stringPropertyNames());
 		}
-		var literal = Pattern
-				.compile("\"((?:household|catalog|inventory|labeling|media|shopping)(?:\\.[a-z-]+){2,})\"");
+		var literal = Pattern.compile(
+				"\"((?:household|catalog|inventory|labeling|media|shopping|sharedkernel)(?:\\.[a-z-]+){2,})\"");
 		var used = new TreeSet<>(COMPOSED_CODES);
 		try (var sources = Files.walk(Path.of("src/main/java"))) {
 			for (var source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {

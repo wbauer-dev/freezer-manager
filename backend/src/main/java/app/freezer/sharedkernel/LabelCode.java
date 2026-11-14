@@ -14,12 +14,14 @@ import org.jmolecules.ddd.types.Identifier;
 public record LabelCode(String value) implements Identifier {
 
 	public static final int LENGTH = 8;
+	/** Message code for anything that is not a label code; its text is in the common bundle. */
+	private static final String INVALID = "sharedkernel.label-code.invalid";
 	private static final String ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	public LabelCode {
 		if (value == null || value.length() != LENGTH || !value.chars().allMatch(c -> ALPHABET.indexOf(c) >= 0)) {
-			throw new IllegalArgumentException("A label code has " + LENGTH + " characters out of " + ALPHABET);
+			throw new InvalidValueException(INVALID, LENGTH);
 		}
 	}
 
@@ -41,7 +43,7 @@ public record LabelCode(String value) implements Identifier {
 	 */
 	public static LabelCode parse(String text) {
 		if (text == null) {
-			throw new IllegalArgumentException("Label code must not be empty");
+			throw new InvalidValueException(INVALID, LENGTH);
 		}
 		var normalized = text.toUpperCase(Locale.ROOT)
 				.replaceAll("[\\s-]", "")
