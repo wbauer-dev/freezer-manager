@@ -52,6 +52,15 @@
       }
 
       <div class="photo-row">
+        <!-- Phones: the camera opens directly; the other input offers the gallery (or files on a computer). -->
+        <input
+          #cameraInput
+          type="file"
+          accept="image/*"
+          capture="environment"
+          class="visually-hidden"
+          (change)="choosePhoto($event)"
+        />
         <input
           #photoInput
           type="file"
@@ -66,27 +75,45 @@
             alt="Photo of the food"
             i18n-alt="@@freeze.photo.alt"
           />
-          <button mat-button type="button" (click)="photoInput.click()">
+          <button mat-button type="button" class="touch-only" (click)="cameraInput.click()">
             <mat-icon>photo_camera</mat-icon>
+            <span i18n="@@freeze.photo.retake">Retake</span>
+          </button>
+          <button mat-button type="button" (click)="photoInput.click()">
+            <mat-icon>photo_library</mat-icon>
             <span i18n="@@freeze.photo.change">Change</span>
           </button>
           <button mat-button type="button" (click)="removePhoto()">
             <mat-icon>close</mat-icon>
             <span i18n="@@common.remove">Remove</span>
           </button>
+        } @else if (uploadingPhoto()) {
+          <button mat-stroked-button type="button" disabled>
+            <mat-icon>hourglass_top</mat-icon>
+            <span i18n="@@freeze.photo.uploading">Uploading…</span>
+          </button>
         } @else {
           <button
             mat-stroked-button
             type="button"
+            class="touch-only take-photo"
+            (click)="cameraInput.click()"
+          >
+            <mat-icon>photo_camera</mat-icon>
+            <span i18n="@@freeze.photo.take">Take a photo</span>
+          </button>
+          <button mat-button type="button" class="touch-only" (click)="photoInput.click()">
+            <mat-icon>photo_library</mat-icon>
+            <span i18n="@@freeze.photo.choose">Choose a photo</span>
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            class="pointer-only"
             (click)="photoInput.click()"
-            [disabled]="uploadingPhoto()"
           >
             <mat-icon>add_a_photo</mat-icon>
-            @if (uploadingPhoto()) {
-              <span i18n="@@freeze.photo.uploading">Uploading…</span>
-            } @else {
-              <span i18n="@@freeze.photo.add">Add a photo</span>
-            }
+            <span i18n="@@freeze.photo.add">Add a photo</span>
           </button>
           <span class="optional" i18n="@@freeze.photo.hint"
             >optional — makes it easy to recognise</span

@@ -73,6 +73,21 @@
   margin-top: 14px;
 }
 
+// Touch screens (phones, tablets) get a camera button; computers a single file picker.
+.touch-only {
+  display: none !important;
+}
+
+@media (pointer: coarse) {
+  .touch-only {
+    display: inline-flex !important;
+  }
+
+  .pointer-only {
+    display: none !important;
+  }
+}
+
 .photo-preview {
   width: 72px;
   height: 72px;
