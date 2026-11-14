@@ -56,6 +56,12 @@ export const routes: Routes = [
     ],
   },
   {
+    // Invitation links lead here; after logging in, the user joins the household.
+    path: 'join/:code',
+    canActivate: [authGuard],
+    loadComponent: () => import('./household/join-page').then((m) => m.JoinPage),
+  },
+  {
     // The scanner inside the app: camera, label, food, take out.
     path: 'scan',
     canActivate: [authGuard],

@@ -18,4 +18,8 @@ public record Member(UserId userId, String displayName, Role role, Instant joine
 		return role == Role.OWNER;
 	}
 
+	Member asOwner() {
+		return new Member(userId, displayName, Role.OWNER, joinedAt);
+	}
+
 }
