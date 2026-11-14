@@ -41,7 +41,8 @@ import app.freezer.sharedkernel.LabelCode;
  * <ul>
  * <li>Portions can only be taken out while the item is in the freezer, and never more than are left.</li>
  * <li>No refreezing: taken-out portions cannot be put back. Only the member who took them out may undo their latest
- * take-out within {@link #UNDO_PERIOD} — for mistakes such as scanning the wrong package.</li>
+ * take-out within {@link #UNDO_PERIOD} — for mistakes such as scanning the wrong package. An item that the take-out
+ * consumed only comes back while its compartment still exists and its label is not on another item.</li>
  * <li>Taking out the last portion consumes the item. Consumed and discarded items cannot be changed.</li>
  * <li>The best-before date is not before the freezing date.</li>
  * <li>Every item carries a label code. Within a household, a code is on at most one item in the freezer (checked by the
@@ -153,15 +154,21 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		}
 	}
 
-	public boolean canUndoTakeOut(UserId by, Instant now) {
-		return reasonUndoIsImpossible(by, now).isEmpty();
+	/**
+	 * Whether the member can undo the latest take-out now. Same arguments as {@link #undoTakeOut}.
+	 */
+	public boolean canUndoTakeOut(UserId by, Instant now, Freezer freezer, boolean labelOnAnotherItem) {
+		return reasonUndoIsImpossible(by, now, freezer, labelOnAnotherItem).isEmpty();
 	}
 
 	/**
-	 * Undoes the latest take-out. If it had consumed the item, the item is back in the freezer.
+	 * Undoes the latest take-out. If it had consumed the item, the item is back in the freezer: in its compartment,
+	 * which must still exist, and with its label, which may have been put on another item in the meantime. Both concern
+	 * other aggregates, so the caller passes the freezer the item was stored in and whether another item in the freezer
+	 * carries this item's label.
 	 */
-	public void undoTakeOut(UserId by, Instant now) {
-		reasonUndoIsImpossible(by, now).ifPresent(reason -> {
+	public void undoTakeOut(UserId by, Instant now, Freezer freezer, boolean labelOnAnotherItem) {
+		reasonUndoIsImpossible(by, now, freezer, labelOnAnotherItem).ifPresent(reason -> {
 			throw reason;
 		});
 
@@ -196,11 +203,17 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		this.photoId = photo;
 	}
 
-	/** Follows a renamed product while the item is in the freezer; afterwards its history stays as it was. */
-	public void productRenamed(String newName) {
-		if (isInFreezer() && newName != null && !newName.isBlank()) {
-			this.productName = newName;
+	/**
+	 * Follows a renamed product while the item is in the freezer; afterwards its history stays as it was.
+	 *
+	 * @return whether the item's name changed
+	 */
+	public boolean productRenamed(String newName) {
+		if (!isInFreezer() || newName == null || newName.isBlank() || newName.equals(productName)) {
+			return false;
 		}
+		this.productName = newName;
+		return true;
 	}
 
 	public ExpiryStatus expiryStatusOn(LocalDate today) {
@@ -221,7 +234,8 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		}
 	}
 
-	private Optional<InventoryRuleViolation> reasonUndoIsImpossible(UserId by, Instant now) {
+	private Optional<InventoryRuleViolation> reasonUndoIsImpossible(UserId by, Instant now, Freezer freezer,
+			boolean labelOnAnotherItem) {
 		if (state == ItemState.DISCARDED) {
 			return Optional.of(new InventoryRuleViolation("inventory.item.discarded"));
 		}
@@ -234,6 +248,16 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		}
 		if (now.isAfter(latest.takenAt().plus(UNDO_PERIOD))) {
 			return Optional.of(new InventoryRuleViolation("inventory.take-out.undo-expired", UNDO_PERIOD.toMinutes()));
+		}
+		if (state == ItemState.CONSUMED) {
+			// The item would come back. Since it left, its place may have been removed — the item would be lost there —
+			// and its label may have been put on another package.
+			if (!freezer.canStore(location)) {
+				return Optional.of(new InventoryRuleViolation("inventory.take-out.undo-place-removed"));
+			}
+			if (labelOnAnotherItem && labelCode != null) {
+				return Optional.of(new InventoryRuleViolation("inventory.label.in-use", labelCode.formatted()));
+			}
 		}
 		return Optional.empty();
 	}
