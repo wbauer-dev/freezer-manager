@@ -148,6 +148,7 @@
           @for (invitation of invitations.value(); track invitation.code) {
             <li class="invitation" [class.created]="invitation.code === created()">
               <input
+                [name]="'invitation-' + invitation.code"
                 class="link"
                 readonly
                 [value]="link(invitation)"
