@@ -19,6 +19,18 @@
   }
 }
 
+// Members are reached from the header; the sections keep room for what is used daily.
+.members-link {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+
+  &.active {
+    color: var(--mat-sys-on-secondary-container);
+    background: var(--mat-sys-secondary-container);
+  }
+}
+
 .title-skeleton {
   width: 220px;
   height: 46px;

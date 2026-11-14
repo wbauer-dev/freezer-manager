@@ -16,6 +16,19 @@
       <p class="eyebrow" i18n="@@household.eyebrow">Household</p>
       <h1>{{ household.value().name }}</h1>
     </div>
+    <a
+      mat-button
+      class="members-link rise"
+      routerLink="members"
+      routerLinkActive="active"
+      aria-label="Members"
+      i18n-aria-label="@@household.section.members"
+      matTooltip="Members"
+      i18n-matTooltip="@@household.section.members"
+    >
+      <mat-icon>group</mat-icon>
+      <span>{{ household.value().members.length }}</span>
+    </a>
   } @else if (household.isLoading()) {
     <div class="skeleton title-skeleton"></div>
   }

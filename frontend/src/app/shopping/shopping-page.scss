@@ -1,0 +1,244 @@
+// ---- Add row ----
+
+.add {
+  padding: 16px;
+}
+
+.add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+
+  .food {
+    flex: 3 1 260px;
+    min-width: 0;
+  }
+
+  .quantity {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+}
+
+.add-button {
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 16px;
+}
+
+.prefix-icon {
+  margin: 0 4px 0 12px;
+  color: var(--muted);
+}
+
+.option-emoji {
+  margin-right: 8px;
+  font-size: 1.2rem;
+}
+
+// ---- Loading, error, empty ----
+
+.row-skeleton {
+  height: 56px;
+
+  & + & {
+    margin-top: 8px;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
+  text-align: center;
+
+  h2 {
+    margin: 14px 0 6px;
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+
+  p {
+    max-width: 26rem;
+    margin: 0;
+    color: var(--muted);
+  }
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+
+  .mat-icon {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+  }
+}
+
+// ---- Lists ----
+
+.muted {
+  color: var(--muted);
+  font: var(--mat-sys-body-small);
+}
+
+.all-done {
+  margin: 0;
+  color: var(--muted);
+}
+
+.done {
+  margin: -6px -8px -6px 0;
+}
+
+.entries {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--glass-bg-strong);
+  transition: opacity 0.2s;
+}
+
+// The whole row ticks the entry off; only the remove button is separate.
+.tick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 4px 8px 12px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}
+
+.box {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--steel-dashed);
+  border-radius: 50%;
+  color: transparent;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+
+  .mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .tick:hover & {
+    border-color: var(--mat-sys-primary);
+  }
+}
+
+.thing {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--hairline);
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+
+  .mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font: var(--mat-sys-body-large);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  color: var(--muted);
+  font: var(--mat-sys-body-small);
+}
+
+.quantity {
+  color: var(--mat-sys-on-surface);
+  font-weight: 500;
+}
+
+.remove {
+  flex: none;
+  color: var(--muted);
+}
+
+// ---- In the basket ----
+
+.entry.checked {
+  opacity: 0.7;
+
+  .box {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
+  }
+
+  .name {
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// Phones: the food gets its own row; quantity and "Add" share the next one.
+@media (max-width: 480px) {
+  .add-row .food {
+    flex-basis: 100%;
+  }
+}

@@ -44,6 +44,8 @@ discard what got freezer burn — and never again find a mystery box from two wi
   metadata on the server.
 - **A catalog per household:** food categories with emoji and shelf life, and the household's
   products. Every member can change it, or start over — empty or with the system defaults.
+- **A shared shopping list:** add foods from the catalog or anything else, tick them off in the
+  shop, clear the basket afterwards. Adding the same thing twice adds up the quantities.
 - **English and German**, prepared for more languages: user interface, error messages, printed
   stickers, the starter catalog and the login page.
 - Light and dark mode, phone and desktop.
@@ -69,9 +71,11 @@ flowchart LR
   INV["Freezer Inventory<br/><b>core</b>"]
   LAB["Labeling<br/><i>supporting</i>"]
   MED["Media<br/><i>generic</i>"]
+  SHOP["Shopping<br/><i>supporting</i>"]
 
-  HH -- "HouseholdMember" --> CAT & INV & LAB & MED
+  HH -- "HouseholdMember" --> CAT & INV & LAB & MED & SHOP
   CAT -- "products, shelf life<br/>event: ProductRenamed" --> INV
+  CAT -- "products<br/>event: ProductRenamed" --> SHOP
   INV -- "events: ItemFrozen,<br/>ItemConsumed, …" --> LAB
   INV <-. "shared kernel:<br/>LabelCode" .-> LAB
   INV -. "PhotoId" .-> MED
@@ -88,6 +92,7 @@ Where to look:
 | Shared kernel | [`LabelCode`](backend/src/main/java/app/freezer/sharedkernel/LabelCode.java) | The only model two contexts share, deliberately tiny. |
 | Open host service | [`Catalog`](backend/src/main/java/app/freezer/catalog/Catalog.java), [`FrozenItemDirectory`](backend/src/main/java/app/freezer/inventory/FrozenItemDirectory.java) | Other modules get a small published API and read models, never the aggregates. |
 | Access rules as types | [`HouseholdMember`](backend/src/main/java/app/freezer/household/HouseholdMember.java) | Only the Household module can create one, after checking membership. Use cases take it as a parameter, so the compiler enforces the tenant check. |
+| One aggregate, many members | [`ShoppingList`](backend/src/main/java/app/freezer/shopping/domain/ShoppingList.java), [`ShoppingListManagement`](backend/src/main/java/app/freezer/shopping/application/ShoppingListManagement.java) | The household's whole list is one aggregate. Its commands are idempotent or merge ("500 g" + "1 kg"), so a change that collided with another member's is simply applied again to the fresh list. |
 | Rules across aggregates | [`CatalogAdministration`](backend/src/main/java/app/freezer/catalog/application/CatalogAdministration.java) | Unique names and "only empty categories can be removed" live in the application service, backed by database constraints. |
 | Ports and adapters | [`PhotoStorage`](backend/src/main/java/app/freezer/media/application/PhotoStorage.java) | Photos are stored in PostgreSQL behind a port; S3 would be another adapter. |
 | A domain without texts | [`Translatable`](backend/src/main/java/app/freezer/sharedkernel/Translatable.java) | The domain reports problems as message codes; the web adapters translate them into the user's language. |
@@ -191,7 +196,8 @@ The tests report missing translations.
 ## Roadmap
 
 1. ✅ Households, catalog, freezer inventory, labels, photos, English and German
-2. A shared **shopping list** with staples that refill themselves when stock runs low
+2. A shared **shopping list** ✅ — next: live updates and staples that refill themselves when stock
+   runs low
 3. **Notifications** about food that should be eaten soon
 4. **Recipes** — "what can I cook from my freezer?", with recipe import
 

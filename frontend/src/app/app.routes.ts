@@ -26,6 +26,10 @@ export const routes: Routes = [
         loadComponent: () => import('./inventory/eat-first-page').then((m) => m.EatFirstPage),
       },
       {
+        path: 'shopping',
+        loadComponent: () => import('./shopping/shopping-page').then((m) => m.ShoppingPage),
+      },
+      {
         path: 'freezers',
         loadComponent: () => import('./inventory/freezers-page').then((m) => m.FreezersPage),
       },

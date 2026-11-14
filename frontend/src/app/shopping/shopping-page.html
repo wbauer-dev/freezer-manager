@@ -1,0 +1,146 @@
+<section class="glass panel add rise">
+  <form class="add-row" (submit)="add($event)" novalidate>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="food">
+      <mat-label i18n="@@shopping.add.food">What do you need?</mat-label>
+      <mat-icon matPrefix class="prefix-icon">add_shopping_cart</mat-icon>
+      <input
+        matInput
+        id="shopping-food"
+        autocomplete="off"
+        [value]="food()"
+        (input)="food.set($any($event.target).value)"
+        [matAutocomplete]="productOptions"
+        [attr.maxlength]="maxName"
+        placeholder="e.g. Peas, Milk"
+        i18n-placeholder="@@shopping.add.foodPlaceholder"
+      />
+      <mat-autocomplete #productOptions (optionSelected)="food.set($event.option.value)">
+        @for (product of suggestions(); track product.id) {
+          <mat-option [value]="product.name">
+            <span class="option-emoji food-emoji">{{ productEmoji(product) }}</span>
+            {{ product.name }}
+          </mat-option>
+        }
+      </mat-autocomplete>
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="quantity">
+      <mat-label i18n="@@shopping.add.quantity">How much</mat-label>
+      <input
+        matInput
+        id="shopping-quantity"
+        autocomplete="off"
+        [value]="quantity()"
+        (input)="quantity.set($any($event.target).value)"
+        [attr.maxlength]="maxQuantity"
+        placeholder="e.g. 500 g"
+        i18n-placeholder="@@shopping.add.quantityPlaceholder"
+      />
+    </mat-form-field>
+    <button mat-flat-button class="cta add-button" type="submit" [disabled]="adding()">
+      <mat-icon>add</mat-icon>
+      <span i18n="@@common.add">Add</span>
+    </button>
+  </form>
+</section>
+
+@if (list.isLoading() && !list.hasValue()) {
+  <div class="glass panel">
+    @for (row of [1, 2, 3]; track row) {
+      <div class="skeleton row-skeleton"></div>
+    }
+  </div>
+} @else if (list.error() && !list.hasValue()) {
+  <p class="field-error" i18n="@@shopping.loadError">The shopping list could not be loaded.</p>
+} @else if (list.hasValue()) {
+  @if (empty()) {
+    <section class="glass panel empty rise">
+      <span class="empty-icon"><mat-icon>shopping_cart</mat-icon></span>
+      <h2 i18n="@@shopping.empty.title">Nothing to buy</h2>
+      <p i18n="@@shopping.empty.text">
+        Add what you need. Everyone in the household sees the same list and can tick things off in
+        the shop.
+      </p>
+    </section>
+  } @else {
+    <section class="glass panel rise">
+      <div class="panel-head">
+        <h2 i18n="@@shopping.toBuy.title">To buy</h2>
+        <span class="muted" i18n="@@shopping.toBuy.count">{open().length, plural,
+          =0 {all in the basket}
+          =1 {1 thing}
+          other {{{ open().length }} things}
+        }</span>
+      </div>
+      @if (open().length === 0) {
+        <p class="all-done" i18n="@@shopping.toBuy.allDone">Everything is in the basket.</p>
+      } @else {
+        <ul class="entries">
+          @for (entry of open(); track entry.id) {
+            <ng-container *ngTemplateOutlet="row; context: { $implicit: entry }" />
+          }
+        </ul>
+      }
+    </section>
+
+    @if (basket().length > 0) {
+      <section class="glass panel basket rise">
+        <div class="panel-head">
+          <h2 i18n="@@shopping.basket.title">In the basket</h2>
+          <button mat-button type="button" class="done" (click)="clearBasket()">
+            <mat-icon>done_all</mat-icon>
+            <span i18n="@@shopping.basket.done">Done shopping</span>
+          </button>
+        </div>
+        <ul class="entries">
+          @for (entry of basket(); track entry.id) {
+            <ng-container *ngTemplateOutlet="row; context: { $implicit: entry }" />
+          }
+        </ul>
+      </section>
+    }
+  }
+}
+
+<ng-template #row let-entry>
+  <li class="entry" [class.checked]="entry.checked">
+    <button
+      type="button"
+      class="tick"
+      [attr.aria-pressed]="entry.checked"
+      [attr.aria-label]="tickLabel(entry)"
+      (click)="toggle(entry)"
+    >
+      <span class="box" aria-hidden="true"><mat-icon>check</mat-icon></span>
+      <span class="thing" aria-hidden="true">
+        @if (emojiOf(entry); as emoji) {
+          <span class="food-emoji">{{ emoji }}</span>
+        } @else {
+          <mat-icon>shopping_bag</mat-icon>
+        }
+      </span>
+      <span class="text">
+        <span class="name">{{ entry.name }}</span>
+        <span class="meta">
+          @if (entry.quantity) {
+            <span class="quantity">{{ entry.quantity }}</span>
+          }
+          @if (entry.checked && entry.checkedBy) {
+            <span i18n="@@shopping.checkedBy">ticked off by {{ entry.checkedBy }}</span>
+          } @else {
+            <span i18n="@@shopping.addedBy">added by {{ entry.addedBy }}</span>
+          }
+        </span>
+      </span>
+    </button>
+    <button
+      mat-icon-button
+      type="button"
+      class="remove"
+      [attr.aria-label]="removeLabel(entry)"
+      [matTooltip]="removeLabel(entry)"
+      (click)="remove(entry)"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  </li>
+</ng-template>
