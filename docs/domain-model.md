@@ -221,6 +221,9 @@ its current sheet:
   six boxes, then print all six labels in one go.
 - When the sheet is full, printing continues on a new sheet. Members can start a new sheet
   manually or mark positions as unusable (torn, misprinted).
+- Members and Inventory's events (a new one-time label's sticker) change the sheet at the same time.
+  Like the shopping list (decision 26), a change that collided is applied again to the fresh sheet,
+  up to three times; the sheet's commands are idempotent, so this is safe.
 - **Scan resolution:** `FREE` → offer "freeze new item"; `ATTACHED` → show the item;
   `USED_UP` → "label already used, consumed on …"; unknown or belongs to another household →
   "unknown label" (never reveal other households' labels).

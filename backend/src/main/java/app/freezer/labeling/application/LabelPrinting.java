@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Service;
@@ -25,9 +26,11 @@ import app.freezer.sharedkernel.LabelCode;
 
 /**
  * Use cases around the print queue, the household's A4 sticker sheet and its persistent labels.
+ * <p>
+ * The household has one sheet, which members and Inventory's events change at the same time. Every change runs in a
+ * transaction of its own and is applied again to the fresh sheet if it collided (see {@link CollisionRetry}).
  */
 @Service
-@Transactional
 public class LabelPrinting {
 
 	public static final int MAX_PERSISTENT_AT_ONCE = 48;
@@ -36,14 +39,16 @@ public class LabelPrinting {
 	private final LabelSheets sheets;
 	private final LabelSheetRenderer renderer;
 	private final FrozenItemDirectory items;
+	private final CollisionRetry retry;
 	private final Clock clock;
 
 	LabelPrinting(Labels labels, LabelSheets sheets, LabelSheetRenderer renderer, FrozenItemDirectory items,
-			Clock clock) {
+			CollisionRetry retry, Clock clock) {
 		this.labels = labels;
 		this.sheets = sheets;
 		this.renderer = renderer;
 		this.items = items;
+		this.retry = retry;
 		this.clock = clock;
 	}
 
@@ -83,52 +88,67 @@ public class LabelPrinting {
 		var label = labelOf(member, code);
 		var sticker = layout == StickerLayout.QR_ONLY ? Sticker.qrOnly(code)
 				: contentSticker(member, label, layout, itemId);
-		var sheet = sheetOf(member);
-		sheet.enqueue(sticker);
-		sheets.save(sheet);
+		changeSheet(member, sheet -> sheet.enqueue(sticker));
 	}
 
 	public void dequeue(HouseholdMember member, LabelCode code, StickerLayout layout) {
-		var sheet = sheetOf(member);
-		sheet.dequeue(code, layout);
-		sheets.save(sheet);
+		changeSheet(member, sheet -> sheet.dequeue(code, layout));
 	}
 
 	/**
 	 * Places the queued stickers on the sheet and renders them in the given language. If rendering fails, nothing is
-	 * marked as printed.
+	 * marked as printed. If someone changed the sheet meanwhile, the fresh sheet is printed.
 	 */
 	public byte[] print(HouseholdMember member, Locale locale) {
-		var sheet = sheetOf(member);
-		var pdf = renderer.render(sheet.print(), locale);
-		sheets.save(sheet);
-		return pdf;
+		return retry.execute(() -> {
+			var sheet = sheetOf(member);
+			var pdf = renderer.render(sheet.print(), locale);
+			sheets.save(sheet);
+			return pdf;
+		});
 	}
 
 	public void startNewSheet(HouseholdMember member) {
-		var sheet = sheetOf(member);
-		sheet.startNewSheet();
-		sheets.save(sheet);
+		changeSheet(member, LabelSheet::startNewSheet);
 	}
 
+	/**
+	 * Marks a free position as used (e.g. torn or misprinted) or a used one as free again. Whether it is marked as
+	 * used or free is decided once, on the sheet as it is now, so applying it again after a collision — maybe with
+	 * another member toggling the same position — does not flip it back.
+	 */
 	public void togglePosition(HouseholdMember member, int position) {
-		var sheet = sheetOf(member);
-		sheet.togglePosition(position);
-		sheets.save(sheet);
+		Consumer<LabelSheet> toggle = sheetOf(member).isUsed(position) ? sheet -> sheet.markFree(position)
+				: sheet -> sheet.markUsed(position);
+		changeSheet(member, toggle);
 	}
 
-	/** Creates labels for containers, lids or bag clips and queues them for printing — QR code only. */
+	/**
+	 * Creates labels for containers, lids or bag clips and queues them for printing — QR code only. The labels and
+	 * their stickers are saved together; after a collision, new labels are created.
+	 */
 	public List<LabelCode> createPersistentLabels(HouseholdMember member, int count) {
 		if (count < 1 || count > MAX_PERSISTENT_AT_ONCE) {
 			throw new InvalidValueException("labeling.persistent.count-invalid", MAX_PERSISTENT_AT_ONCE);
 		}
-		var sheet = sheetOf(member);
-		var codes = IntStream.range(0, count)
-				.mapToObj(i -> labels.save(Label.persistent(member.householdId(), Instant.now(clock))).getId())
-				.toList();
-		codes.forEach(code -> sheet.enqueue(Sticker.qrOnly(code)));
-		sheets.save(sheet);
-		return codes;
+		return retry.execute(() -> {
+			var sheet = sheetOf(member);
+			var codes = IntStream.range(0, count)
+					.mapToObj(i -> labels.save(Label.persistent(member.householdId(), Instant.now(clock))).getId())
+					.toList();
+			codes.forEach(code -> sheet.enqueue(Sticker.qrOnly(code)));
+			sheets.save(sheet);
+			return codes;
+		});
+	}
+
+	/** Applies a change to the fresh sheet in a transaction of its own, again if it collided. */
+	private void changeSheet(HouseholdMember member, Consumer<LabelSheet> change) {
+		retry.run(() -> {
+			var sheet = sheetOf(member);
+			change.accept(sheet);
+			sheets.save(sheet);
+		});
 	}
 
 	private Sticker contentSticker(HouseholdMember member, Label label, StickerLayout layout, FrozenItemId itemId) {
@@ -143,6 +163,7 @@ public class LabelPrinting {
 						description.bestBefore());
 	}
 
+	/** A household's sheet is created when it is first changed. */
 	private LabelSheet sheetOf(HouseholdMember member) {
 		return sheets.findById(member.householdId()).orElseGet(() -> LabelSheet.startFor(member.householdId()));
 	}

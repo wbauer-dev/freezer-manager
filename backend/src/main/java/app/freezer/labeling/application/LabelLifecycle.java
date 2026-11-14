@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 
 import app.freezer.inventory.FrozenItemId;
 import app.freezer.inventory.ItemConsumed;
@@ -24,9 +25,10 @@ import app.freezer.sharedkernel.LabelCode;
 /**
  * Follows the items in the freezer: Labeling never calls Inventory, it only reacts to its events.
  * <p>
- * Each reaction runs after Inventory's transaction committed, asynchronously and in a transaction of its own. Spring
- * Modulith records every event publication first, so a reaction that fails is retried on restart instead of being
- * lost.
+ * Each reaction runs after Inventory's transaction committed, asynchronously and in a transaction of its own. If it
+ * collides with a member's change to the same label or sheet, it is applied again to the fresh data (see
+ * {@link CollisionRetry}). Spring Modulith records every event publication first, so a reaction that still fails is
+ * retried on restart instead of being lost. A reaction may therefore see an event again and must not mind.
  */
 @Service
 class LabelLifecycle {
@@ -35,11 +37,13 @@ class LabelLifecycle {
 
 	private final Labels labels;
 	private final LabelSheets sheets;
+	private final CollisionRetry retry;
 	private final Clock clock;
 
-	LabelLifecycle(Labels labels, LabelSheets sheets, Clock clock) {
+	LabelLifecycle(Labels labels, LabelSheets sheets, CollisionRetry retry, Clock clock) {
 		this.labels = labels;
 		this.sheets = sheets;
+		this.retry = retry;
 		this.clock = clock;
 	}
 
@@ -47,58 +51,63 @@ class LabelLifecycle {
 	 * A known free label (persistent, on a container) is attached; an unknown code becomes a new one-time label whose
 	 * sticker — QR code with the item's name and dates — waits in the print queue.
 	 */
-	@ApplicationModuleListener
+	@ApplicationModuleListener(propagation = Propagation.NOT_SUPPORTED)
 	void on(ItemFrozen event) {
 		var code = event.labelCode();
-		if (code == null) {
-			return;
+		if (code != null) {
+			retry.run(() -> labels.findById(code).ifPresentOrElse(label -> attach(label, event),
+					() -> createOneTimeLabel(code, event)));
 		}
-		labels.findById(code).ifPresentOrElse(label -> {
-			if (!label.belongsTo(event.householdId())) {
-				conflict(code, event.itemId(), "belongs to another household");
-				return;
-			}
-			try {
-				label.attach(event.itemId());
-				labels.save(label);
-			}
-			catch (LabelingRuleViolation e) {
-				conflict(code, event.itemId(), e.getMessage());
-			}
-		}, () -> {
-			labels.save(Label.oneTimeFor(code, event.householdId(), event.itemId(), Instant.now(clock)));
-			var sheet = sheets.findById(event.householdId()).orElseGet(() -> LabelSheet.startFor(event.householdId()));
-			sheet.enqueue(Sticker.qrAndContent(code, event.productName(), event.frozenOn(), event.bestBefore()));
-			sheets.save(sheet);
-		});
 	}
 
-	@ApplicationModuleListener
+	@ApplicationModuleListener(propagation = Propagation.NOT_SUPPORTED)
 	void on(ItemConsumed event) {
 		release(event.labelCode(), event.itemId());
 	}
 
-	@ApplicationModuleListener
+	@ApplicationModuleListener(propagation = Propagation.NOT_SUPPORTED)
 	void on(ItemDiscarded event) {
 		release(event.labelCode(), event.itemId());
 	}
 
-	@ApplicationModuleListener
+	@ApplicationModuleListener(propagation = Propagation.NOT_SUPPORTED)
 	void on(TakeOutUndone event) {
 		if (event.labelCode() != null) {
-			labels.findById(event.labelCode()).ifPresent(label -> {
+			retry.run(() -> labels.findById(event.labelCode()).ifPresent(label -> {
 				label.reattach(event.itemId());
 				labels.save(label);
-			});
+			}));
 		}
+	}
+
+	private void attach(Label label, ItemFrozen event) {
+		if (!label.belongsTo(event.householdId())) {
+			conflict(label.getId(), event.itemId(), "belongs to another household");
+			return;
+		}
+		try {
+			label.attach(event.itemId());
+			labels.save(label);
+		}
+		catch (LabelingRuleViolation e) {
+			conflict(label.getId(), event.itemId(), e.getMessage());
+		}
+	}
+
+	/** The label and its sticker in the print queue are saved together, or not at all. */
+	private void createOneTimeLabel(LabelCode code, ItemFrozen event) {
+		labels.save(Label.oneTimeFor(code, event.householdId(), event.itemId(), Instant.now(clock)));
+		var sheet = sheets.findById(event.householdId()).orElseGet(() -> LabelSheet.startFor(event.householdId()));
+		sheet.enqueue(Sticker.qrAndContent(code, event.productName(), event.frozenOn(), event.bestBefore()));
+		sheets.save(sheet);
 	}
 
 	private void release(LabelCode code, FrozenItemId itemId) {
 		if (code != null) {
-			labels.findById(code).ifPresent(label -> {
+			retry.run(() -> labels.findById(code).ifPresent(label -> {
 				label.release(itemId);
 				labels.save(label);
-			});
+			}));
 		}
 	}
 

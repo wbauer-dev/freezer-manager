@@ -39,7 +39,7 @@ class LabelSheetTests {
 
 	@Test
 	void continuesOnANewSheetWhenTheCurrentOneIsFull() {
-		IntStream.range(0, 23).forEach(sheet::togglePosition);
+		IntStream.range(0, 23).forEach(sheet::markUsed);
 		sheet.enqueue(A);
 		sheet.enqueue(B);
 		sheet.enqueue(C);
@@ -54,7 +54,7 @@ class LabelSheetTests {
 
 	@Test
 	void startsOnANewSheetWithoutABlankPageWhenTheCurrentOneIsAlreadyFull() {
-		IntStream.range(0, 24).forEach(sheet::togglePosition);
+		IntStream.range(0, 24).forEach(sheet::markUsed);
 		assertThat(sheet.nextFreePosition()).isEqualTo(-1);
 		sheet.enqueue(A);
 		sheet.enqueue(B);
@@ -67,7 +67,7 @@ class LabelSheetTests {
 
 	@Test
 	void aSheetFilledByPrintingStaysFullUntilTheNextPrint() {
-		IntStream.range(0, 23).forEach(sheet::togglePosition);
+		IntStream.range(0, 23).forEach(sheet::markUsed);
 		sheet.enqueue(A);
 		sheet.print();
 
@@ -78,9 +78,9 @@ class LabelSheetTests {
 
 	@Test
 	void skipsPositionsMarkedAsUnusable() {
-		sheet.togglePosition(0);
-		sheet.togglePosition(1);
-		sheet.togglePosition(1);
+		sheet.markUsed(0);
+		sheet.markUsed(1);
+		sheet.markFree(1);
 		sheet.enqueue(A);
 
 		assertThat(sheet.print().pages().getFirst()).containsExactly(new Placement(1, A));
@@ -112,8 +112,26 @@ class LabelSheetTests {
 	}
 
 	@Test
+	void markingAPositionTwiceChangesNothing() {
+		sheet.markUsed(2);
+		sheet.markUsed(2);
+		assertThat(sheet.getUsedPositions()).containsExactly(2);
+
+		sheet.markFree(2);
+		sheet.markFree(2);
+		assertThat(sheet.isUsed(2)).isFalse();
+	}
+
+	@Test
+	void onlyPositionsOnTheSheetCanBeMarked() {
+		assertThatIllegalArgumentException().isThrownBy(() -> sheet.markUsed(24))
+				.withMessage("labeling.sheet.position-invalid");
+		assertThatIllegalArgumentException().isThrownBy(() -> sheet.markFree(-1));
+	}
+
+	@Test
 	void newSheetStartsAtTheFirstPosition() {
-		sheet.togglePosition(0);
+		sheet.markUsed(0);
 		sheet.startNewSheet();
 
 		assertThat(sheet.nextFreePosition()).isZero();
