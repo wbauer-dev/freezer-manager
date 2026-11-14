@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.modulith.events.CompletedEventPublications;
 import org.springframework.modulith.events.core.EventPublicationRegistry;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
@@ -57,6 +58,9 @@ class ShoppingModuleTests {
 
 	@Autowired
 	EventPublicationRegistry publications;
+
+	@Autowired
+	CompletedEventPublications completedPublications;
 
 	HouseholdMember alice;
 	ProductId peas;
@@ -113,6 +117,20 @@ class ShoppingModuleTests {
 		scenario.publish(late)
 				.andWaitForStateChange(() -> handled(late))
 				.andVerify(handled -> assertThat(nameOnTheList()).contains("Frozen peas"));
+	}
+
+	/** The event publication registry only keeps what is outstanding (completion mode "delete"). */
+	@Test
+	void aHandledEventLeavesNoPublicationBehind(Scenario scenario) {
+		knowPeas();
+		shopping.add(alice, new AddEntry(peas, null, null));
+		catalogCalls(peas, "Garden peas");
+
+		var renamed = new ProductRenamed(alice.householdId(), peas, "Garden peas");
+		scenario.publish(renamed)
+				.andWaitForStateChange(() -> handled(renamed))
+				.andVerify(handled -> assertThat(completedPublications.findAll())
+						.noneMatch(publication -> publication.getEvent().equals(renamed)));
 	}
 
 	@Test
