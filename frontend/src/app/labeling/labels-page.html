@@ -5,6 +5,12 @@
   </div>
 }
 
+@if (sheet.error()) {
+  <app-load-error (retry)="reload()">
+    <span i18n="@@labels.loadError">The print queue and sheet could not be loaded.</span>
+  </app-load-error>
+}
+
 @if (sheet.hasValue()) {
   @let s = sheet.value();
   <div class="layout">

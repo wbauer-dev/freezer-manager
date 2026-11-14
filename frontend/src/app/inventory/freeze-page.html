@@ -17,6 +17,10 @@
       >Set up a freezer</a
     >
   </div>
+} @else if (freezers.error() || products.error() || categories.error()) {
+  <app-load-error (retry)="reload()">
+    <span i18n="@@freeze.loadError">Your freezers and foods could not be loaded.</span>
+  </app-load-error>
 } @else if (freezers.hasValue() && products.hasValue() && categories.hasValue()) {
   <form (submit)="freeze($event)" novalidate>
     <!-- 1 · What -->

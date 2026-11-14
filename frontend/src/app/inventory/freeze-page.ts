@@ -24,6 +24,7 @@ import { preparePhoto } from '../media/prepare-photo';
 import { DATE_FORMAT, addMonths, today } from '../shared/dates';
 import { formatLabelCode, normalizeLabelCode } from '../shared/label-code';
 import { FoodAvatar } from '../shared/food-avatar';
+import { LoadError, reloadFailed } from '../shared/load-error';
 import { problemMessage } from '../shared/problem-message';
 import { InventoryApi } from './inventory-api';
 import { Freezer } from './inventory.model';
@@ -59,6 +60,7 @@ interface FreezeModel {
     MatInputModule,
     MatRippleModule,
     FoodAvatar,
+    LoadError,
   ],
   templateUrl: './freeze-page.html',
   styleUrl: './freeze-page.scss',
@@ -267,6 +269,10 @@ export class FreezePage {
 
   protected pick(product: Product): void {
     this.model.update((model) => ({ ...model, product: product.name }));
+  }
+
+  protected reload(): void {
+    reloadFailed(this.freezers, this.products, this.categories);
   }
 
   protected chooseCategory(categoryId: string): void {

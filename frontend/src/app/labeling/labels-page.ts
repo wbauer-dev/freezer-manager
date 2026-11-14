@@ -9,6 +9,7 @@ import { Observable } from 'rxjs';
 
 import { DATE_FORMAT } from '../shared/dates';
 import { formatLabelCode } from '../shared/label-code';
+import { LoadError, reloadFailed } from '../shared/load-error';
 import { problemMessage } from '../shared/problem-message';
 import { LabelingApi } from './labeling-api';
 import { LAYOUT_NAMES, LabelSheet, LabelStock, StickerLayout } from './labeling.model';
@@ -19,7 +20,7 @@ import { plannedPositions } from './sheet-preview';
  */
 @Component({
   selector: 'app-labels-page',
-  imports: [DatePipe, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [DatePipe, LoadError, MatButtonModule, MatIconModule, MatTooltipModule],
   templateUrl: './labels-page.html',
   styleUrl: './labels-page.scss',
 })
@@ -83,6 +84,10 @@ export class LabelsPage {
       ? $localize`:@@labels.startHint.continues:Starts at position ${position}:position: of your current sheet and continues on a new sheet (${more}:more: more).`
       : $localize`:@@labels.startHint:Starts at position ${position}:position: of your current sheet.`;
   });
+
+  protected reload(): void {
+    reloadFailed(this.sheet, this.stock);
+  }
 
   protected removeFromQueueLabel(name: string): string {
     return $localize`:@@labels.removeFromQueue:Remove ${name}:name: from the queue`;

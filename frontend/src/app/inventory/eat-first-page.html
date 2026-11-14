@@ -9,8 +9,10 @@
   }
 }
 
-@if (entries.error()) {
-  <p class="field-error" i18n="@@eatFirst.loadError">The freezer contents could not be loaded.</p>
+@if (entries.error() || freezers.error()) {
+  <app-load-error (retry)="reload()">
+    <span i18n="@@eatFirst.loadError">The freezer contents could not be loaded.</span>
+  </app-load-error>
 }
 
 @if (entries.hasValue() && freezers.hasValue()) {
