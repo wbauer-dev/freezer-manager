@@ -57,6 +57,7 @@ export class ScannerPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly router = inject(Router);
   private readonly scanner = new QrScanner();
+  private cameraAttempt = 0;
 
   private readonly video = viewChild.required<ElementRef<HTMLVideoElement>>('video');
 
@@ -175,6 +176,7 @@ export class ScannerPage {
   }
 
   private async startCamera(): Promise<void> {
+    const attempt = ++this.cameraAttempt;
     this.cameraProblem.set(null);
     this.cameraStarting.set(true);
     try {
@@ -182,7 +184,10 @@ export class ScannerPage {
     } catch (error) {
       this.cameraProblem.set(error instanceof CameraError ? error.problem : 'unavailable');
     } finally {
-      this.cameraStarting.set(false);
+      // An earlier attempt that was overtaken must not end the waiting animation of the current one.
+      if (attempt === this.cameraAttempt) {
+        this.cameraStarting.set(false);
+      }
     }
   }
 

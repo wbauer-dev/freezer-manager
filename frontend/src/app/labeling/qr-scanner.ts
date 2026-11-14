@@ -26,9 +26,17 @@ const FRAME_INTERVAL_MS = 150;
 export class QrScanner {
   private stream: MediaStream | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Counts the calls of start() and stop(). Starting takes a while (permission prompt, video, decoder): a start that
+   * was overtaken by stop() notices it after its next await and switches off what it got meanwhile.
+   */
+  private run = 0;
 
+  /** Resolves when the camera is on — or when stop() was called in the meantime. */
   async start(video: HTMLVideoElement, onCode: (text: string) => void): Promise<void> {
     this.stop();
+    const run = this.run;
+    const stopped = () => run !== this.run;
     if (!window.isSecureContext) {
       // Browsers only give pages served over HTTPS (or from localhost) access to the camera.
       throw new CameraError('insecure');
@@ -36,8 +44,9 @@ export class QrScanner {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new CameraError('unavailable');
     }
+    let stream: MediaStream;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
           facingMode: { ideal: 'environment' },
@@ -46,22 +55,41 @@ export class QrScanner {
         },
       });
     } catch (error) {
+      if (stopped()) {
+        return;
+      }
       const denied = error instanceof DOMException && error.name === 'NotAllowedError';
       throw new CameraError(denied ? 'denied' : 'unavailable');
     }
-    video.srcObject = this.stream;
-    await video.play();
-    const decode = await decoder();
-
-    const readFrame = async (): Promise<void> => {
-      if (!this.stream) {
+    if (stopped()) {
+      switchOff(stream);
+      return;
+    }
+    // From here on, stop() switches the camera off.
+    this.stream = stream;
+    video.srcObject = stream;
+    let decode: Decode;
+    try {
+      await video.play();
+      decode = await decoder();
+    } catch {
+      if (stopped()) {
         return;
       }
+      this.stop();
+      video.srcObject = null;
+      throw new CameraError('unavailable');
+    }
+    if (stopped()) {
+      return;
+    }
+
+    const readFrame = async (): Promise<void> => {
       const text =
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
           ? await decode(video).catch(() => null)
           : null;
-      if (!this.stream) {
+      if (stopped()) {
         return;
       }
       if (text) {
@@ -76,13 +104,20 @@ export class QrScanner {
   }
 
   stop(): void {
+    this.run++;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    this.stream?.getTracks().forEach((track) => track.stop());
-    this.stream = null;
+    if (this.stream) {
+      switchOff(this.stream);
+      this.stream = null;
+    }
   }
+}
+
+function switchOff(stream: MediaStream): void {
+  stream.getTracks().forEach((track) => track.stop());
 }
 
 async function decoder(): Promise<Decode> {
