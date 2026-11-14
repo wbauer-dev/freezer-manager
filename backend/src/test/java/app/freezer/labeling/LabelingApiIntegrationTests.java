@@ -152,6 +152,46 @@ class LabelingApiIntegrationTests {
 	}
 
 	@Test
+	void aMemberOfAnotherHouseholdCannotReachItsLabelsOrSheet() {
+		var item = post(api("/items"), freezeRequest(1, null));
+		var code = json(item, "$.labelCode");
+		await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(get(api("/label-sheet")))
+				.bodyJson().extractingPath("$.queue[*].code").isEqualTo(List.of(code)));
+		var persistent = json(post(api("/labels/persistent"), "{ \"count\": 1 }"), "$[0]");
+
+		// Bob is a real member — of his own household.
+		var bob = user("bob-" + UUID.randomUUID());
+		var bobsHousehold = json(mvc.post().uri("/api/households").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"name\": \"Bob's flat\" }").exchange(), "$.id");
+		var bobs = "/api/households/" + bobsHousehold;
+
+		assertThat(mvc.get().uri("/api/labels/" + code).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri("/api/labels/" + persistent).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(bobs + "/label-sheet/queue").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"code\": \"%s\", \"layout\": \"QR_ONLY\" }".formatted(persistent)))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(bobs + "/label-sheet/queue").with(bob).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"code\": \"%s\", \"layout\": \"CONTENT_ONLY\", \"itemId\": \"%s\" }"
+						.formatted(code, json(item, "$.id"))))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(bobs + "/label-sheet/queue/" + code + "?layout=QR_AND_CONTENT").with(bob))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.get().uri(bobs + "/label-sheet").with(bob)).bodyJson().extractingPath("$.queue")
+				.isEqualTo(List.of());
+		assertThat(mvc.get().uri(bobs + "/labels/free").with(bob)).bodyJson().isEqualTo("[]");
+		assertThat(mvc.post().uri(bobs + "/label-sheet/print").with(bob)).hasStatus(HttpStatus.CONFLICT);
+
+		// Under Alice's household, Bob is no member.
+		assertThat(mvc.get().uri(api("/label-sheet")).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(api("/label-sheet/queue/" + code + "?layout=QR_AND_CONTENT")).with(bob))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().uri(api("/label-sheet/print")).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+
+		assertThat(get(api("/label-sheet"))).bodyJson().extractingPath("$.queue[*].code")
+				.isEqualTo(List.of(code, persistent));
+	}
+
+	@Test
 	void codesThatCannotBeLabelsAreUnknownLabels() {
 		assertThat(get("/api/labels/K7Q2")).hasStatus(HttpStatus.NOT_FOUND).bodyJson().extractingPath("$.detail")
 				.isEqualTo("Unknown label.");

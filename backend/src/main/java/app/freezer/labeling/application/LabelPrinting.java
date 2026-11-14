@@ -94,8 +94,10 @@ public class LabelPrinting {
 		changeSheet(member, sheet -> sheet.enqueue(sticker));
 	}
 
+	/** Takes a sticker out of the print queue. A label the household doesn't have is unknown, as when queueing it. */
 	public void dequeue(HouseholdMember member, LabelCode code, StickerLayout layout) {
-		changeSheet(member, sheet -> sheet.dequeue(code, layout));
+		var label = labelOf(member, code);
+		changeSheet(member, sheet -> sheet.dequeue(label.getId(), layout));
 	}
 
 	/**
