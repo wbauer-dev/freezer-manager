@@ -227,8 +227,9 @@ its current sheet:
 bits, no ambiguous characters), printed as `K7Q2-M9XA`. Typed codes are read leniently (case,
 dashes, I/L → 1, O → 0). Inventory generates the code of a new one-time label when an item is
 frozen; Labeling generates the codes of persistent labels. The QR encodes a URL
-(`https://<host>/s/K7Q2M9XA`), so any phone camera opens the app directly. *Later:* an in-app
-scanner for fast series scanning.
+(`https://<host>/s/K7Q2M9XA`), so any phone camera opens the app directly. The app's own
+scanner reads the same codes — from any host, so stickers printed under an earlier address keep
+working — and shows the food right away, ready to take portions out and scan the next label.
 
 **Why Labeling is downstream only:** a label sits physically on one package, so two members
 attaching the same label at the same moment practically can't happen. Instead of a synchronous

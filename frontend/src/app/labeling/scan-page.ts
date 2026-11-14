@@ -32,10 +32,8 @@ import { ScannedLabel } from './labeling.model';
             <a
               mat-stroked-button
               [routerLink]="['/households', label.householdId, 'items', label.itemId]"
-              i18n="@@scan.usedUp.history"
+              ><span i18n="@@scan.usedUp.history">Show the item’s history</span></a
             >
-              Show the item’s history
-            </a>
           }
         }
         @case ('unknown') {

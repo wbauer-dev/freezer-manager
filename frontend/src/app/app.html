@@ -10,6 +10,17 @@
   </a>
   <span class="spacer"></span>
   @if (authenticated()) {
+    <a
+      mat-icon-button
+      routerLink="/scan"
+      class="scan-button"
+      aria-label="Scan a label"
+      i18n-aria-label="@@app.scan"
+      title="Scan a label"
+      i18n-title="@@app.scan"
+    >
+      <mat-icon>qr_code_scanner</mat-icon>
+    </a>
     <button
       class="account"
       [matMenuTriggerFor]="accountMenu"
