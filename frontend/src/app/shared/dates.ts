@@ -44,9 +44,19 @@ export function freshness(frozenOn: string, bestBefore: string): number {
 /** Short date with month name, e.g. "13 Nov 2026" or "13. Nov. 2026", for the DatePipe. */
 export const DATE_FORMAT = $localize`:@@format.date:d MMM y`;
 
-/** "12 days left", "4 months left", "eat today", "expired 3 days ago". */
-export function timeLeft(bestBefore: string): string {
-  const days = daysUntil(bestBefore);
+/**
+ * "12 days left", "4 months left", "eat today", "expired 3 days ago".
+ *
+ * The expiry status comes from the server, which counts days in its own time zone (decision 14). Around midnight the
+ * browser's today can be a day ahead or behind, so the days are kept on the side of the status: an item that is not
+ * expired never says "expired yesterday", an expired one never says "eat today".
+ */
+export function timeLeft(
+  bestBefore: string,
+  status: 'EXPIRED' | 'EXPIRING_SOON' | 'FRESH',
+): string {
+  const days =
+    status === 'EXPIRED' ? Math.min(daysUntil(bestBefore), -1) : Math.max(daysUntil(bestBefore), 0);
   if (days < -1) {
     return $localize`:@@timeLeft.expiredDaysAgo:expired ${-days}:days: days ago`;
   }

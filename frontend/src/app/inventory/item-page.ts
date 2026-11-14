@@ -131,7 +131,7 @@ export class ItemPage {
   });
   protected readonly timeLeft = computed(() => {
     const item = this.current();
-    return item ? timeLeft(item.bestBefore) : '';
+    return item ? timeLeft(item.bestBefore, item.expiryStatus) : '';
   });
 
   protected readonly statusLabel = computed(() => {

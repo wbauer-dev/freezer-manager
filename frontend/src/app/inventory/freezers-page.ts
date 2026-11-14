@@ -209,7 +209,7 @@ export class FreezersPage {
   }
 
   protected timeLeft(entry: EatFirstEntry): string {
-    return timeLeft(entry.bestBefore);
+    return timeLeft(entry.bestBefore, entry.expiryStatus);
   }
 
   protected statusClass(entry: EatFirstEntry): string {

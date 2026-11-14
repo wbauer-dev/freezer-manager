@@ -102,7 +102,7 @@ export class ScannerPage {
   });
   protected readonly timeLeft = computed(() => {
     const scanned = this.item();
-    return scanned ? timeLeft(scanned.item.bestBefore) : '';
+    return scanned ? timeLeft(scanned.item.bestBefore, scanned.item.expiryStatus) : '';
   });
 
   constructor() {

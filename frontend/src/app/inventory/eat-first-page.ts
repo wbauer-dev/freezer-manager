@@ -122,7 +122,7 @@ export class EatFirstPage {
   }
 
   protected timeLeft(entry: EatFirstEntry): string {
-    return timeLeft(entry.bestBefore);
+    return timeLeft(entry.bestBefore, entry.expiryStatus);
   }
 
   protected statusClass(status: ExpiryStatus): string {
