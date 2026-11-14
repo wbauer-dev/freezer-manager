@@ -53,6 +53,11 @@ public class FreezerManagement {
 
 	public void removeCompartment(HouseholdMember member, FreezerId freezerId, CompartmentId compartmentId) {
 		var freezer = lockedFreezerOf(member, freezerId);
+		// First make sure it is a compartment of this freezer: whether another household's compartment is empty is
+		// none of the member's business.
+		if (freezer.compartment(compartmentId).isEmpty()) {
+			throw new IllegalArgumentException("inventory.compartment.unknown");
+		}
 		// Deliberately not an invariant of the Freezer aggregate: it would have to load all items to know.
 		if (items.anyInCompartment(compartmentId)) {
 			throw new InventoryRuleViolation("inventory.compartment.not-empty");

@@ -27,6 +27,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.freezer.TestcontainersConfiguration;
 import app.freezer.inventory.domain.FrozenItems;
+import app.freezer.media.TestImages;
 
 /**
  * Inventory and Catalog through the REST API, with PostgreSQL. Each test works in a fresh household.
@@ -268,6 +269,71 @@ class InventoryApiIntegrationTests {
 	}
 
 	@Test
+	void aMemberOfAnotherHouseholdCannotReachThisHouseholdsInventoryThroughTheirOwn() {
+		var photo = json(mvc.post().uri(api("/photos")).with(alice).multipart()
+				.file("file", TestImages.png(400, 300, false)).exchange(), "$.id");
+		var item = id(post(api("/items"), freezeRequest(peas, top, 2, TODAY)));
+		// Bob founded a household of his own, so the membership check lets him through to the use cases.
+		var bob = user("bob-" + UUID.randomUUID(), "Bob");
+		var bobs = "/api/households/" + id(post(bob, "/api/households", """
+				{ "name": "Bob's flat" }
+				"""));
+		var bobsFreezer = id(post(bob, bobs + "/freezers", """
+				{ "name": "Garage", "compartments": [ "Main" ] }
+				"""));
+		var bobsCompartment = json(mvc.get().uri(bobs + "/freezers").with(bob).exchange(), "$[0].compartments[0].id");
+		var bobsPeas = productNamed(bob, bobs, "Peas");
+		var freeze = """
+				{ "productId": "%s", "freezerId": "%s", "compartmentId": "%s", "portions": 1, "frozenOn": "%s",
+				  "photoId": %s }
+				""";
+		var bobsItem = id(post(bob, bobs + "/items", freeze.formatted(bobsPeas, bobsFreezer, bobsCompartment, TODAY,
+				null)));
+
+		// Alice's item and freezer under Bob's household
+		assertThat(mvc.get().uri(bobs + "/items/" + item).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		for (var command : List.of("/take-out", "/undo-take-out", "/discard", "/photo")) {
+			assertThat(post(bob, bobs + "/items/" + item + command, """
+					{ "portions": 1, "reason": "EXPIRED", "photoId": "%s" }
+					""".formatted(photo))).as(command).hasStatus(HttpStatus.NOT_FOUND);
+		}
+		assertThat(mvc.delete().uri(bobs + "/freezers/" + kitchen).with(bob)).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(post(bob, bobs + "/freezers/" + kitchen + "/compartments", """
+				{ "name": "Extra" }
+				""")).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(post(bob, bobs + "/freezers/" + kitchen + "/rearrange-compartments", """
+				{ "compartmentIds": [ "%s", "%s" ] }
+				""".formatted(bottom, top))).hasStatus(HttpStatus.NOT_FOUND);
+		// Alice's top drawer holds the peas. Bob must not even learn that it is not empty.
+		assertThat(mvc.delete().uri(bobs + "/freezers/" + bobsFreezer + "/compartments/" + top).with(bob))
+				.hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+				.extractingPath("$.detail").isEqualTo("This compartment does not exist.");
+
+		// Alice's freezer, compartment, product and photo in Bob's commands
+		for (var foreign : List.of(freeze.formatted(bobsPeas, kitchen, top, TODAY, null),
+				freeze.formatted(bobsPeas, bobsFreezer, top, TODAY, null),
+				freeze.formatted(peas, bobsFreezer, bobsCompartment, TODAY, null),
+				freeze.formatted(bobsPeas, bobsFreezer, bobsCompartment, TODAY, "\"" + photo + "\""))) {
+			assertThat(post(bob, bobs + "/items", foreign)).as(foreign).hasStatus(HttpStatus.BAD_REQUEST);
+		}
+		assertThat(post(bob, bobs + "/items/" + bobsItem + "/photo", """
+				{ "photoId": "%s" }
+				""".formatted(photo))).hasStatus(HttpStatus.BAD_REQUEST);
+
+		// Bob sees only his own inventory, and Alice's is as it was.
+		assertThat(mvc.get().uri(bobs + "/freezers").with(bob)).bodyJson()
+				.extractingPath("$[*].name").isEqualTo(List.of("Garage"));
+		assertThat(mvc.get().uri(bobs + "/eat-first").with(bob)).bodyJson()
+				.extractingPath("$[*].itemId").isEqualTo(List.of(bobsItem));
+		assertThat(mvc.get().uri(api("/items/" + item)).with(alice)).bodyJson().isLenientlyEqualTo("""
+				{ "state": "IN_FREEZER", "remainingPortions": 2, "photoId": null, "withdrawals": [] }
+				""");
+		assertThat(mvc.get().uri(api("/freezers")).with(alice)).bodyJson().isLenientlyEqualTo("""
+				[ { "name": "Kitchen", "compartments": [ { "name": "Top", "itemCount": 1 }, { "name": "Bottom" } ] } ]
+				""");
+	}
+
+	@Test
 	void itemsInTheFreezerFollowARenamedProduct() {
 		var inFreezer = id(post(api("/items"), freezeRequest(peas, top, 1, TODAY)));
 		var eaten = id(post(api("/items"), freezeRequest(peas, top, 1, TODAY)));
@@ -303,7 +369,11 @@ class InventoryApiIntegrationTests {
 	}
 
 	private String productNamed(String name) {
-		List<String> ids = JsonPath.read(content(mvc.get().uri(api("/products")).with(alice).exchange()),
+		return productNamed(alice, api(""), name);
+	}
+
+	private String productNamed(RequestPostProcessor user, String householdUri, String name) {
+		List<String> ids = JsonPath.read(content(mvc.get().uri(householdUri + "/products").with(user).exchange()),
 				"$[?(@.name == '" + name + "')].id");
 		return ids.getFirst();
 	}
@@ -313,7 +383,11 @@ class InventoryApiIntegrationTests {
 	}
 
 	private MvcTestResult post(String uri, String body) {
-		return mvc.post().uri(uri).with(alice).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+		return post(alice, uri, body);
+	}
+
+	private MvcTestResult post(RequestPostProcessor user, String uri, String body) {
+		return mvc.post().uri(uri).with(user).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 	}
 
 	private static String id(MvcTestResult result) {
