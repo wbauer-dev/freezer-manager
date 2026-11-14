@@ -119,12 +119,17 @@ http://localhost:8081 (`admin` / `admin`).
 **Or run everything in containers** — no Java or Node needed, only Docker:
 
 ```bash
-docker compose --profile app up -d --build   # app on http://localhost:8000
+docker compose --profile app up -d --build   # app on https://localhost:8443
 ```
 
-The backend and the frontend are built from their Dockerfiles; nginx serves the app and forwards
-`/api` to the backend. Without `--profile app`, Compose starts only PostgreSQL and Keycloak for
-development.
+The backend and the frontend are built from their Dockerfiles. nginx serves the app, the API and
+the Keycloak login under one HTTPS address, with a self-signed certificate (your browser warns once).
+Without `--profile app`, Compose starts only PostgreSQL and Keycloak for development.
+
+To use the app from other devices — for example a phone that scans labels — copy `.env.example` to
+`.env` and set `FREEZER_URL` to this computer's address, e.g. `https://192.168.1.20:8443`. Open the
+app with exactly that address; login, the API and the QR codes on new stickers all use it. HTTPS is
+required because the login uses the browser's Web Crypto API.
 
 > All credentials in this repository are for local development only.
 

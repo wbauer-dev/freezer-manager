@@ -17,11 +17,11 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:4200/*", "http://localhost:8000/*"],
-      "webOrigins": ["http://localhost:4200", "http://localhost:8000"],
+      "redirectUris": ["http://localhost:4200/*", "${FREEZER_URL:https://localhost:8443}/*"],
+      "webOrigins": ["+"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*##http://localhost:8000/*"
+        "post.logout.redirect.uris": "+"
       },
       "protocolMappers": [
         {
