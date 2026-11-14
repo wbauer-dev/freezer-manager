@@ -13,7 +13,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarRef } from '@angular/material/snack-bar';
 import { forkJoin } from 'rxjs';
 
 import { emojiByProduct } from '../catalog/catalog-lookup';
@@ -58,6 +58,8 @@ export class ScannerPage {
   private readonly router = inject(Router);
   private readonly scanner = new QrScanner();
   private cameraAttempt = 0;
+  /** Offers to undo the last take-out; it belongs to the item shown and goes when the next label is scanned. */
+  private undoSnackBar: MatSnackBarRef<unknown> | null = null;
 
   private readonly video = viewChild.required<ElementRef<HTMLVideoElement>>('video');
 
@@ -105,10 +107,14 @@ export class ScannerPage {
 
   constructor() {
     afterNextRender(() => this.startCamera());
-    inject(DestroyRef).onDestroy(() => this.scanner.stop());
+    inject(DestroyRef).onDestroy(() => {
+      this.scanner.stop();
+      this.undoSnackBar?.dismiss();
+    });
   }
 
   protected scanNext(): void {
+    this.undoSnackBar?.dismiss();
     this.result.set(null);
     this.phase.set('camera');
     this.startCamera();
@@ -147,10 +153,10 @@ export class ScannerPage {
             : portions === 1
               ? $localize`:@@item.takenOut.one:1 portion taken out`
               : $localize`:@@item.takenOut.many:${portions}:count: portions taken out`;
-        this.snackBar
-          .open(message, $localize`:@@common.undo:Undo`, { duration: 10000 })
-          .onAction()
-          .subscribe(() => this.undo(householdId, item.id));
+        this.undoSnackBar = this.snackBar.open(message, $localize`:@@common.undo:Undo`, {
+          duration: 10000,
+        });
+        this.undoSnackBar.onAction().subscribe(() => this.undo(householdId, item.id));
       },
       error: (error) => this.failed(error),
     });
@@ -171,8 +177,11 @@ export class ScannerPage {
     });
   }
 
+  /** Shows the item's new state — unless another label was scanned in the meantime. */
   private showItem(item: FrozenItem): void {
-    this.result.update((result) => (result?.kind === 'item' ? { ...result, item } : result));
+    this.result.update((result) =>
+      result?.kind === 'item' && result.item.id === item.id ? { ...result, item } : result,
+    );
   }
 
   private async startCamera(): Promise<void> {
