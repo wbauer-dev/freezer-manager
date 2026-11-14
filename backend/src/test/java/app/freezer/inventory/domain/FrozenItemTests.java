@@ -235,6 +235,28 @@ class FrozenItemTests {
 	}
 
 	@Nested
+	class FollowingARenamedProduct {
+
+		@Test
+		void takesTheNewNameWhileInTheFreezer() {
+			var item = freezeMincedMeat(2);
+
+			assertThat(item.productRenamed("Ground beef")).isTrue();
+			assertThat(item.productRenamed("Ground beef")).isFalse();
+			assertThat(item.getProductName()).isEqualTo("Ground beef");
+		}
+
+		@Test
+		void keepsTheNameItLeftTheFreezerWith() {
+			var item = freezeMincedMeat(1);
+			item.takeOut(1, ALICE, "Alice", NOW);
+
+			assertThat(item.productRenamed("Ground beef")).isFalse();
+			assertThat(item.getProductName()).isEqualTo("Minced meat");
+		}
+	}
+
+	@Nested
 	class Discarding {
 
 		@Test

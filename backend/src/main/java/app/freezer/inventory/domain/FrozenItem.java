@@ -203,11 +203,17 @@ public class FrozenItem implements AggregateRoot<FrozenItem, FrozenItemId> {
 		this.photoId = photo;
 	}
 
-	/** Follows a renamed product while the item is in the freezer; afterwards its history stays as it was. */
-	public void productRenamed(String newName) {
-		if (isInFreezer() && newName != null && !newName.isBlank()) {
-			this.productName = newName;
+	/**
+	 * Follows a renamed product while the item is in the freezer; afterwards its history stays as it was.
+	 *
+	 * @return whether the item's name changed
+	 */
+	public boolean productRenamed(String newName) {
+		if (!isInFreezer() || newName == null || newName.isBlank() || newName.equals(productName)) {
+			return false;
 		}
+		this.productName = newName;
+		return true;
 	}
 
 	public ExpiryStatus expiryStatusOn(LocalDate today) {
