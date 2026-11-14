@@ -25,4 +25,8 @@ COPY --from=build /workspace/extracted/application/ ./
 USER freezer
 EXPOSE 8080
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+# No development defaults in the image: the deployment must set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME,
+# SPRING_DATASOURCE_PASSWORD, SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI and FREEZER_LABELS_SCANURL
+# (src/main/resources/application-container.yml); the application refuses to start without them.
+ENV SPRING_PROFILES_ACTIVE=container
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

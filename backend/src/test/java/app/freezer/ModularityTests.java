@@ -21,10 +21,21 @@ class ModularityTests {
 		MODULES.verify();
 	}
 
-	/** Writes C4 and module diagrams to {@code target/spring-modulith-docs}. */
+	/**
+	 * Writes C4 and module diagrams to {@code target/spring-modulith-docs}.
+	 * <p>
+	 * Deliberately not {@code writeDocumentation()}: it also writes the module metadata to
+	 * {@code target/classes/META-INF/spring-modulith/application-modules.json}. Spring Modulith prefers that file to
+	 * scanning the code when the application starts, so after a non-clean build the application (and every later test)
+	 * would only know the modules of an earlier build — and skip the migrations of a new module.
+	 */
 	@Test
 	void writesDocumentation() {
-		new Documenter(MODULES).writeDocumentation();
+		new Documenter(MODULES)
+				.writeModulesAsPlantUml()
+				.writeIndividualModulesAsPlantUml()
+				.writeModuleCanvases()
+				.writeAggregatingDocument();
 
 		assertThat(Path.of("target", "spring-modulith-docs", "components.puml")).isNotEmptyFile();
 	}

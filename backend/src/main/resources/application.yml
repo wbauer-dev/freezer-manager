@@ -13,6 +13,9 @@ spring:
       flyway-enabled: true
     events:
       republish-outstanding-events-on-restart: true
+      # A handled event's publication is deleted; event_publication only keeps what is outstanding or failed.
+      # Failed ones are resubmitted every few minutes (FailedEventResubmission).
+      completion-mode: delete
 
   security:
     oauth2:

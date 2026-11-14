@@ -197,6 +197,35 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
+				<!--
+					Spring Modulith takes the application modules from META-INF/spring-modulith/application-modules.json
+					instead of scanning the code, if that file is on the classpath. A copy left in target/classes by an
+					earlier build (e.g. from Documenter.writeDocumentation()) would hide modules added since, and skip
+					their migrations. Remove it before every build, including "spring-boot:run".
+				-->
+				<artifactId>maven-clean-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>remove-stale-module-metadata</id>
+						<phase>initialize</phase>
+						<goals>
+							<goal>clean</goal>
+						</goals>
+						<configuration>
+							<excludeDefaultDirectories>true</excludeDefaultDirectories>
+							<filesets>
+								<fileset>
+									<directory>${project.build.outputDirectory}/META-INF/spring-modulith</directory>
+									<includes>
+										<include>application-modules.json</include>
+									</includes>
+								</fileset>
+							</filesets>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
 				<!-- Code conventions (formatting, imports, naming), checked before compiling -->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-checkstyle-plugin</artifactId>

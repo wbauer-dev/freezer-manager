@@ -32,7 +32,9 @@ one bounded context: `household`, `catalog`, `inventory`, `labeling`, `media`, `
   that other modules may use. Sub-packages are internal.
 - Modules talk to each other preferably through **events**. Spring Modulith stores every event
   publication in the `event_publication` table within the sending transaction (transactional
-  outbox) and resubmits incomplete ones after a restart.
+  outbox) and resubmits incomplete ones after a restart. A handled publication is deleted
+  (`completion-mode: delete`); failed ones at least five minutes old are resubmitted every five minutes
+  (`FailedEventResubmission`, in the application's base package next to the security configuration).
 - A module reacts to another module's events with `@ApplicationModuleListener`: after the sender's
   transaction committed, asynchronously, in a transaction of its own. Example: Labeling follows
   Inventory (`ItemFrozen`, `ItemConsumed`, …) and never calls it. Reactions must tolerate events
