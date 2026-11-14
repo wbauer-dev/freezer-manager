@@ -125,6 +125,42 @@ describe('ShoppingPage', () => {
     request.flush({ entries: [{ ...milk, checked: false, checkedBy: null, checkedAt: null }] });
   });
 
+  it('keeps Add disabled until the add has finished, and what was typed meanwhile', async () => {
+    await open({ entries: [peas] });
+    await enter('#shopping-food', 'Milk');
+    await submit();
+    const add = http.expectOne({
+      method: 'POST',
+      url: '/api/households/h1/shopping-list/entries',
+    });
+
+    // Another command finishing first does not end the add.
+    element('.entry .tick').click();
+    await fixture.whenStable();
+    http
+      .expectOne({ method: 'POST', url: '/api/households/h1/shopping-list/entries/e1/check' })
+      .flush({ entries: [{ ...peas, checked: true }] });
+    await fixture.whenStable();
+    expect(element<HTMLButtonElement>('.add-button').disabled).toBe(true);
+    await submit();
+    http.expectNone({ method: 'POST', url: '/api/households/h1/shopping-list/entries' });
+
+    await enter('#shopping-food', 'Bread');
+    add.flush({
+      entries: [
+        { ...peas, checked: true },
+        { ...milk, checked: false },
+      ],
+    });
+    TestBed.tick();
+    // The two commands overlapped, so the list is loaded once more.
+    http.expectOne('/api/households/h1/shopping-list').flush({ entries: [peas, milk] });
+    await fixture.whenStable();
+
+    expect(element<HTMLButtonElement>('.add-button').disabled).toBe(false);
+    expect(element<HTMLInputElement>('#shopping-food').value).toBe('Bread');
+  });
+
   it('ticks an entry off right away and takes the answer of the server', async () => {
     await open({ entries: [peas] });
 

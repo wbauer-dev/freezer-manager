@@ -364,10 +364,11 @@
     @if (confirmingReset()) {
       <div class="confirm" role="alertdialog">
         <mat-icon>warning</mat-icon>
-        <span i18n="@@catalog.reset.confirm"
-          >All {{ categoryCount() }} categories and {{ productCount() }} foods will be replaced.
-          Start over?</span
-        >
+        <!-- prettier-ignore -->
+        <span i18n="@@catalog.reset.confirm">{categoryCount(), plural,
+          =1 {1 category and {productCount(), plural, =1 {1 food} other {{{ productCount() }} foods}} will be replaced. Start over?}
+          other {All {{ categoryCount() }} categories and {productCount(), plural, =1 {1 food} other {{{ productCount() }} foods}} will be replaced. Start over?}
+        }</span>
         <div class="confirm-actions">
           <button mat-button type="button" (click)="confirmingReset.set(false)">
             <span i18n="@@common.cancel">Cancel</span>

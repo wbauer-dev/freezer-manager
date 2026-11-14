@@ -20,6 +20,7 @@ import {
 
 import { routes } from './app.routes';
 import { authConfig } from './core/auth/auth.config';
+import { SessionExpiry, sessionExpiryInterceptor } from './core/auth/session-expiry';
 import { acceptLanguageInterceptor } from './core/i18n/accept-language.interceptor';
 
 export const appConfig: ApplicationConfig = {
@@ -33,8 +34,14 @@ export const appConfig: ApplicationConfig = {
       // Pages cross-fade; food avatars morph from the list into the item page.
       withViewTransitions({ skipInitialTransition: true }),
     ),
-    provideHttpClient(withInterceptors([authInterceptor(), acceptLanguageInterceptor])),
+    provideHttpClient(
+      withInterceptors([authInterceptor(), acceptLanguageInterceptor, sessionExpiryInterceptor]),
+    ),
     provideAuth(authConfig, withAppInitializerAuthCheck()),
+    // An ended session (e.g. after a phone slept) leads to the login instead of failing API calls.
+    provideAppInitializer(() => {
+      inject(SessionExpiry);
+    }),
     provideAppInitializer(() => {
       inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded');
     }),

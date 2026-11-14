@@ -8,6 +8,7 @@
   "registrationAllowed": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
   "clients": [
     {
       "clientId": "freezer-frontend",

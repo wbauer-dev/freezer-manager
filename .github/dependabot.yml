@@ -45,3 +45,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # Base images of the app's own images (Node and nginx, JDK and JRE)
+  - package-ecosystem: docker
+    directories: [/frontend, /backend]
+    schedule:
+      interval: weekly

@@ -3,6 +3,11 @@
 // Status colours carry meaning: muted teal for fresh, ochre for "eat soon", brick red for expired.
 @use '@angular/material' as mat;
 @use './styles/theme-colors' as frost;
+// Fonts are served with the app, not from Google: no visitor's address goes to a third party, icons work offline,
+// and the content security policy allows only this origin. mat-icon uses the rounded symbols (see app.config.ts).
+@use '@fontsource-variable/inter';
+@use '@fontsource-variable/outfit';
+@use 'material-symbols/rounded';
 
 html {
   color-scheme: light dark;
@@ -14,8 +19,8 @@ html {
         theme-type: color-scheme,
       ),
       typography: (
-        plain-family: 'Inter',
-        brand-family: 'Outfit',
+        plain-family: 'Inter Variable',
+        brand-family: 'Outfit Variable',
         bold-weight: 600,
         medium-weight: 500,
         regular-weight: 400,
@@ -52,7 +57,7 @@ html {
 }
 
 :root {
-  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit Variable', 'Inter Variable', system-ui, sans-serif;
 
   // One accent, used sparingly: primary actions, the logo, selections.
   --accent: var(--mat-sys-primary);

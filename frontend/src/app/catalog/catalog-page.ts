@@ -9,7 +9,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatRippleModule } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Observable } from 'rxjs';
+import { Observable, finalize } from 'rxjs';
 
 import { Autofocus } from '../shared/autofocus';
 import { EMOJI_SUGGESTIONS, foodHue } from '../shared/food';
@@ -120,6 +120,9 @@ export class CatalogPage {
   protected readonly resetLanguage = signal(this.language);
   protected readonly confirmingReset = signal(false);
 
+  /** Commands in flight. The same command again — a second Enter, a double click — is ignored meanwhile. */
+  private readonly inFlight = new Set<string>();
+
   protected startNewCategory(): void {
     this.draft.set({ ...NEW_CATEGORY });
     this.draftError.set(null);
@@ -194,14 +197,17 @@ export class CatalogPage {
   protected removeCategory(category: FoodCategory): void {
     this.confirmingRemoval.set(null);
     this.draft.set(null);
-    this.run(this.api.removeCategory(this.householdId(), category.id), () =>
-      this.snackBar.open(
-        $localize`:@@catalog.category.removed:${category.name}:name: removed`,
-        undefined,
-        {
-          duration: 3000,
-        },
-      ),
+    this.run(
+      `remove-category:${category.id}`,
+      this.api.removeCategory(this.householdId(), category.id),
+      () =>
+        this.snackBar.open(
+          $localize`:@@catalog.category.removed:${category.name}:name: removed`,
+          undefined,
+          {
+            duration: 3000,
+          },
+        ),
     );
   }
 
@@ -209,22 +215,39 @@ export class CatalogPage {
     const name = input.value.trim();
     if (name) {
       this.run(
+        `new-food:${normalize(name)}`,
         this.api.defineProduct(this.householdId(), name, category.id),
-        () => (input.value = ''),
+        () => {
+          // Keep what was typed in the meantime.
+          if (input.value.trim() === name) {
+            input.value = '';
+          }
+        },
       );
     }
   }
 
+  /**
+   * Enter and leaving the field save the new name, Escape ends without saving. Ending removes the field, which may
+   * blur it once more: only what ended the rename counts.
+   */
   protected rename(product: Product, input: HTMLInputElement): void {
-    const name = input.value.trim();
+    if (this.renaming() !== product.id) {
+      return;
+    }
     this.renaming.set(null);
+    const name = input.value.trim();
     if (name && name !== product.name) {
-      this.run(this.api.editProduct(this.householdId(), { ...product, name }));
+      this.run(
+        `rename:${product.id}`,
+        this.api.editProduct(this.householdId(), { ...product, name }),
+      );
     }
   }
 
   protected moveTo(product: Product, category: FoodCategory): void {
     this.run(
+      `move:${product.id}`,
       this.api.editProduct(this.householdId(), { ...product, categoryId: category.id }),
       () =>
         this.snackBar.open(
@@ -236,14 +259,17 @@ export class CatalogPage {
   }
 
   protected removeProduct(product: Product): void {
-    this.run(this.api.removeProduct(this.householdId(), product.id), () =>
-      this.snackBar.open(
-        $localize`:@@catalog.product.removed:${product.name}:name: removed`,
-        undefined,
-        {
-          duration: 3000,
-        },
-      ),
+    this.run(
+      `remove-food:${product.id}`,
+      this.api.removeProduct(this.householdId(), product.id),
+      () =>
+        this.snackBar.open(
+          $localize`:@@catalog.product.removed:${product.name}:name: removed`,
+          undefined,
+          {
+            duration: 3000,
+          },
+        ),
     );
   }
 
@@ -251,6 +277,7 @@ export class CatalogPage {
     this.confirmingReset.set(false);
     const mode = this.resetMode();
     this.run(
+      'reset',
       this.api.reset(this.householdId(), mode, mode === 'DEFAULTS' ? this.resetLanguage() : null),
       () => {
         this.info.reload();
@@ -282,8 +309,13 @@ export class CatalogPage {
     return $localize`:@@catalog.product.addLabel:New food in ${category.name}:name:`;
   }
 
-  private run(command: Observable<unknown>, onSuccess?: () => void): void {
-    command.subscribe({
+  /** Runs a command unless the same one (by key) is still in flight, then shows the catalog as it is now. */
+  private run(key: string, command: Observable<unknown>, onSuccess?: () => void): void {
+    if (this.inFlight.has(key)) {
+      return;
+    }
+    this.inFlight.add(key);
+    command.pipe(finalize(() => this.inFlight.delete(key))).subscribe({
       next: () => {
         onSuccess?.();
         this.categories.reload();

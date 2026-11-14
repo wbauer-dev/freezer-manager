@@ -43,7 +43,7 @@
     "catalog.reset.emptyHint": "Build your own catalog from scratch",
     "catalog.reset.language": "Language",
     "catalog.reset.languageLabel": "Defaults in",
-    "catalog.reset.confirm": "All {$INTERPOLATION} categories and {$INTERPOLATION_1} foods will be replaced. Start over?",
+    "catalog.reset.confirm": "{VAR_PLURAL_2, plural, =1 {1 category and {VAR_PLURAL, plural, =1 {1 food} other {{INTERPOLATION} foods}} will be replaced. Start over?} other {All {INTERPOLATION_1} categories and {VAR_PLURAL_1, plural, =1 {1 food} other {{INTERPOLATION} foods}} will be replaced. Start over?}}",
     "catalog.reset.action": "Start over",
     "catalog.reset.ask": "Start over…",
     "catalog.product.rename": "Rename",
