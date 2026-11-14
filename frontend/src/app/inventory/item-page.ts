@@ -1,7 +1,19 @@
-import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse, httpResource } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -30,7 +42,9 @@ const MAX_TILES = 24;
 @Component({
   selector: 'app-item-page',
   imports: [
+    CdkTrapFocus,
     DatePipe,
+    NgTemplateOutlet,
     RouterLink,
     MatButtonModule,
     MatIconModule,
@@ -40,6 +54,7 @@ const MAX_TILES = 24;
   ],
   templateUrl: './item-page.html',
   styleUrl: './item-page.scss',
+  host: { '(document:keydown.escape)': 'closePhoto()' },
 })
 export class ItemPage {
   readonly householdId = input.required<string>();
@@ -97,6 +112,11 @@ export class ItemPage {
     return item?.photoId ? this.photos.url(this.householdId(), item.photoId)() : null;
   });
   protected readonly showingPhoto = signal(false);
+  private readonly zoomButton = viewChild<ElementRef<HTMLButtonElement>>('zoomButton');
+  private readonly lightboxClose = viewChild('lightboxClose', {
+    read: ElementRef<HTMLButtonElement>,
+  });
+  private readonly injector = inject(Injector);
   protected readonly largePhotoUrl = computed(() => {
     const item = this.current();
     return this.showingPhoto() && item?.photoId
@@ -146,6 +166,21 @@ export class ItemPage {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.undoSnackBar?.dismiss());
+  }
+
+  /** Shows the photo large. Focus moves into it, and back to the photo when it is closed. */
+  protected openPhoto(): void {
+    this.showingPhoto.set(true);
+    afterNextRender(() => this.lightboxClose()?.nativeElement.focus(), {
+      injector: this.injector,
+    });
+  }
+
+  protected closePhoto(): void {
+    if (this.showingPhoto()) {
+      this.showingPhoto.set(false);
+      this.zoomButton()?.nativeElement.focus();
+    }
   }
 
   /** Tapping a tile selects it and every remaining tile to its right. */

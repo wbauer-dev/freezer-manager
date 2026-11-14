@@ -212,6 +212,7 @@
     "item.removedDrawer": "entferntes Fach",
     "item.gramsPerPortion": "{$INTERPOLATION} g / Portion",
     "item.persistent": "Dauer-Etikett",
+    "item.photo.zoom": "Foto groß anzeigen",
     "item.photo": "Foto",
     "common.close": "Schließen",
     "item.eaten.title": "Alles gegessen!",

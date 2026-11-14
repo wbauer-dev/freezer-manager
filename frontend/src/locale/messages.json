@@ -209,6 +209,7 @@
     "discardReason.other": "Other reason",
     "item.notFound": "This item does not exist.",
     "item.loadError": "The item could not be loaded.",
+    "item.photo.zoom": "Show the photo larger",
     "item.removedDrawer": "removed drawer",
     "item.gramsPerPortion": "{$INTERPOLATION} g / portion",
     "item.persistent": "persistent",

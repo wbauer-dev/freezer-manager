@@ -89,4 +89,46 @@ describe('ItemPage', () => {
     undo.flush(PEAS);
     await fixture.whenStable();
   });
+
+  describe('with a photo', () => {
+    const { createObjectURL } = URL;
+
+    beforeEach(() => {
+      // The test browser has no object URLs.
+      URL.createObjectURL = () => 'blob:photo';
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = createObjectURL;
+    });
+
+    function lightbox(): HTMLElement | null {
+      return fixture.nativeElement.querySelector('[role="dialog"]');
+    }
+
+    it('shows the photo large from the keyboard and closes it with Escape', async () => {
+      await open({ ...PEAS, photoId: 'ph1' });
+      http.expectOne('/api/households/h1/photos/ph1?size=THUMBNAIL').flush(new Blob(['jpeg']));
+      await fixture.whenStable();
+
+      const zoom: HTMLButtonElement = fixture.nativeElement.querySelector('button.zoom');
+      expect(zoom.getAttribute('aria-label')).toBe('Show the photo larger');
+      zoom.focus();
+      zoom.click();
+      await fixture.whenStable();
+      http.expectOne('/api/households/h1/photos/ph1?size=LARGE').flush(new Blob(['jpeg']));
+      await fixture.whenStable();
+
+      expect(lightbox()).not.toBeNull();
+      expect(lightbox()!.contains(document.activeElement)).toBe(true);
+
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
+      await fixture.whenStable();
+
+      expect(lightbox()).toBeNull();
+      expect(document.activeElement).toBe(zoom);
+    });
+  });
 });
