@@ -1,6 +1,7 @@
 package app.freezer.household.persistence;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.Repository;
@@ -9,6 +10,7 @@ import app.freezer.household.HouseholdId;
 import app.freezer.household.UserId;
 import app.freezer.household.domain.Household;
 import app.freezer.household.domain.Households;
+import app.freezer.household.domain.InvitationCode;
 
 /**
  * Spring Data JDBC implements the domain's {@link Households} interface: {@code save} and {@code findById} are routed
@@ -23,5 +25,12 @@ interface JdbcHouseholds extends Households, Repository<Household, HouseholdId> 
 			order by h.name
 			""")
 	List<Household> findAllWithMember(UserId userId);
+
+	@Override
+	@Query("""
+			select h.* from household.household h
+			where exists (select 1 from household.invitation i where i.household_id = h.id and i.code = :code)
+			""")
+	Optional<Household> findByInvitation(InvitationCode code);
 
 }
