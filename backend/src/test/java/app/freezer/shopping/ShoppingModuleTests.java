@@ -111,7 +111,8 @@ class ShoppingModuleTests {
 		shopping.add(alice, new AddEntry(peas, null, null));
 		catalogCalls(peas, "Frozen peas");
 		scenario.publish(new ProductRenamed(alice.householdId(), peas, "Frozen peas"))
-				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Frozen peas"::equals).isPresent());
+				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Frozen peas"::equals).isPresent())
+				.andVerify(name -> assertThat(name).contains("Frozen peas"));
 
 		var late = new ProductRenamed(alice.householdId(), peas, "Garden peas");
 		scenario.publish(late)
