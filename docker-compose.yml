@@ -28,7 +28,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2
-    # Dev mode keeps its data inside the container; the realm is imported again on a fresh container.
+    # The realm is imported on the first start, when the data volume is still empty; later starts keep the accounts.
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
@@ -41,6 +41,7 @@ services:
     ports:
       - "8081:8080"
     volumes:
+      - keycloak-data:/opt/keycloak/data
       - ./infra/keycloak:/opt/keycloak/data/import:ro
 
   backend:
@@ -78,4 +79,7 @@ services:
 
 volumes:
   postgres-data:
+  # Keycloak's accounts and keys. Without it, every new container would forget all users, and users who register
+  # again get a new identity that their households do not know.
+  keycloak-data:
   nginx-certs:
