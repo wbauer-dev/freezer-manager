@@ -19,6 +19,11 @@ import app.freezer.household.HouseholdMember;
 
 /**
  * Every member can change the household's catalog: categories and products.
+ * <p>
+ * Listing categories or products and defining a category expect the household's catalog to be started: call
+ * {@link CatalogSetup#ensureStarted} first. Not from within these methods: it starts the catalog in a transaction of
+ * its own, which inside one of theirs would hold a second connection — and many members opening their catalogs for
+ * the first time at once could exhaust the connection pool.
  */
 @Service
 @Transactional
@@ -27,27 +32,22 @@ public class CatalogAdministration {
 	private final FoodCategories categories;
 	private final Products products;
 	private final HouseholdCatalogs catalogs;
-	private final CatalogSetup setup;
 
-	CatalogAdministration(FoodCategories categories, Products products, HouseholdCatalogs catalogs,
-			CatalogSetup setup) {
+	CatalogAdministration(FoodCategories categories, Products products, HouseholdCatalogs catalogs) {
 		this.categories = categories;
 		this.products = products;
 		this.catalogs = catalogs;
-		this.setup = setup;
 	}
 
-	/** @param language for the system defaults, if the household's catalog is used for the first time */
+	/** Expects the catalog to be started ({@link CatalogSetup#ensureStarted}). */
 	@Transactional(readOnly = true)
-	public List<FoodCategory> categories(HouseholdMember member, String language) {
-		setup.ensureStarted(member.householdId(), language);
+	public List<FoodCategory> categories(HouseholdMember member) {
 		return categories.findAllOfHousehold(member.householdId());
 	}
 
-	/** @param language for the system defaults, if the household's catalog is used for the first time */
+	/** Expects the catalog to be started ({@link CatalogSetup#ensureStarted}). */
 	@Transactional(readOnly = true)
-	public List<Product> products(HouseholdMember member, String language) {
-		setup.ensureStarted(member.householdId(), language);
+	public List<Product> products(HouseholdMember member) {
 		return products.findAllOfHousehold(member.householdId());
 	}
 
@@ -56,10 +56,8 @@ public class CatalogAdministration {
 		return catalogs.findById(member.householdId());
 	}
 
-	/** @param language for the system defaults, if the household's catalog is used for the first time */
-	public FoodCategory defineCategory(HouseholdMember member, String name, String emoji, int shelfLifeMonths,
-			String language) {
-		setup.ensureStarted(member.householdId(), language);
+	/** Expects the catalog to be started ({@link CatalogSetup#ensureStarted}). */
+	public FoodCategory defineCategory(HouseholdMember member, String name, String emoji, int shelfLifeMonths) {
 		var category = FoodCategory.define(member.householdId(), name, emoji, shelfLifeMonths,
 				categories.nextPosition(member.householdId()));
 		requireFreeCategoryName(category);

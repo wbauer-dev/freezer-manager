@@ -3,6 +3,7 @@ package app.freezer.catalog.web;
 import java.util.Locale;
 
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,15 @@ class CatalogExceptionHandler {
 	@ExceptionHandler(DuplicateKeyException.class)
 	ProblemDetail duplicate(Locale locale) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, messages.getMessage("name-taken", null, locale));
+	}
+
+	/**
+	 * Another member removed a category (or started the catalog over) while a product was added to it: the foreign key
+	 * decides. {@link DuplicateKeyException}, a special case, is handled above.
+	 */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	ProblemDetail conflict(Locale locale) {
+		return changedConcurrently(locale);
 	}
 
 	private ProblemDetail problem(HttpStatus status, RuntimeException e, Locale locale) {
