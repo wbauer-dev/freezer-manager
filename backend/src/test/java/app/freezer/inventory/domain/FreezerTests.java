@@ -111,4 +111,22 @@ class FreezerTests {
 		assertThatIllegalArgumentException().isThrownBy(() -> cellar.locationOf(kitchenTop));
 	}
 
+	@Test
+	void storesItemsOnlyInExistingCompartmentsWhileInUse() {
+		var kitchen = Freezer.setUp(HOUSEHOLD, "Kitchen", List.of("Top", "Bottom"));
+		var cellar = Freezer.setUp(HOUSEHOLD, "Cellar", List.of("Top"));
+		var top = kitchen.locationOf(kitchen.getCompartments().getFirst().id());
+		var bottom = kitchen.locationOf(kitchen.getCompartments().getLast().id());
+
+		assertThat(kitchen.canStore(top)).isTrue();
+		assertThat(cellar.canStore(top)).isFalse();
+
+		kitchen.removeCompartment(top.compartmentId());
+		assertThat(kitchen.canStore(top)).isFalse();
+		assertThat(kitchen.canStore(bottom)).isTrue();
+
+		kitchen.remove(Instant.parse("2026-11-13T10:00:00Z"));
+		assertThat(kitchen.canStore(bottom)).isFalse();
+	}
+
 }

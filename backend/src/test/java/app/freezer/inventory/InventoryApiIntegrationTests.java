@@ -167,6 +167,37 @@ class InventoryApiIntegrationTests {
 	}
 
 	@Test
+	void anEatenItemDoesNotComeBackIntoARemovedCompartment() {
+		var itemUri = api("/items/" + id(post(api("/items"), freezeRequest(peas, bottom, 1, TODAY))));
+		post(itemUri + "/take-out", """
+				{ "portions": 1 }
+				""");
+		assertThat(mvc.delete().uri(api("/freezers/" + kitchen + "/compartments/" + bottom)).with(alice))
+				.hasStatus(HttpStatus.NO_CONTENT);
+
+		assertThat(mvc.get().uri(itemUri).with(alice)).bodyJson().isLenientlyEqualTo("""
+				{ "state": "CONSUMED", "canUndoTakeOut": false }
+				""");
+		assertThat(post(itemUri + "/undo-take-out", "")).hasStatus(HttpStatus.CONFLICT).bodyJson()
+				.extractingPath("$.detail").isEqualTo(
+						"This item cannot go back into the freezer: its compartment or the freezer has been removed.");
+		assertThat(mvc.get().uri(itemUri).with(alice)).bodyJson().extractingPath("$.state").isEqualTo("CONSUMED");
+	}
+
+	@Test
+	void anEatenItemDoesNotComeBackIntoARemovedFreezer() {
+		var itemUri = api("/items/" + id(post(api("/items"), freezeRequest(peas, top, 1, TODAY))));
+		post(itemUri + "/take-out", """
+				{ "portions": 1 }
+				""");
+		assertThat(mvc.delete().uri(api("/freezers/" + kitchen)).with(alice)).hasStatus(HttpStatus.NO_CONTENT);
+
+		assertThat(mvc.get().uri(itemUri).with(alice)).bodyJson().extractingPath("$.canUndoTakeOut").isEqualTo(false);
+		assertThat(post(itemUri + "/undo-take-out", "")).hasStatus(HttpStatus.CONFLICT);
+		assertThat(mvc.get().uri(api("/eat-first")).with(alice)).bodyJson().isEqualTo("[]");
+	}
+
+	@Test
 	void compartmentsCanBeRearranged() {
 		assertThat(post(api("/freezers/" + kitchen + "/rearrange-compartments"), """
 				{ "compartmentIds": [ "%s", "%s" ] }

@@ -121,6 +121,14 @@ public class Freezer implements AggregateRoot<Freezer, FreezerId> {
 	}
 
 	/**
+	 * Whether an item can be stored at this location — e.g. put back after an undone take-out: the freezer is still in
+	 * use and still has the compartment.
+	 */
+	public boolean canStore(Location location) {
+		return !isRemoved() && id.equals(location.freezerId()) && compartment(location.compartmentId()).isPresent();
+	}
+
+	/**
 	 * Removes the freezer. The caller must make sure it is empty.
 	 */
 	public void remove(Instant now) {
