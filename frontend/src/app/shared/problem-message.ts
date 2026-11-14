@@ -13,3 +13,24 @@ export function problemMessage(error: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/**
+ * A request for a file (responseType 'blob', e.g. a PDF) gets its problem details as a Blob, too. This reads them, so
+ * that problemMessage() finds the detail; any other error is returned as it is.
+ */
+export async function readProblem(error: unknown): Promise<unknown> {
+  if (!(error instanceof HttpErrorResponse) || !(error.error instanceof Blob)) {
+    return error;
+  }
+  try {
+    return new HttpErrorResponse({
+      error: JSON.parse(await error.error.text()),
+      headers: error.headers,
+      status: error.status,
+      statusText: error.statusText,
+      url: error.url ?? undefined,
+    });
+  } catch {
+    return error;
+  }
+}

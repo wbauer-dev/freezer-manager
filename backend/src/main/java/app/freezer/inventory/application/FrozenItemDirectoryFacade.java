@@ -1,5 +1,7 @@
 package app.freezer.inventory.application;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -19,9 +21,11 @@ import app.freezer.inventory.domain.FrozenItems;
 class FrozenItemDirectoryFacade implements FrozenItemDirectory {
 
 	private final FrozenItems items;
+	private final InventoryQueries queries;
 
-	FrozenItemDirectoryFacade(FrozenItems items) {
+	FrozenItemDirectoryFacade(FrozenItems items, InventoryQueries queries) {
 		this.items = items;
+		this.queries = queries;
 	}
 
 	@Override
@@ -30,6 +34,16 @@ class FrozenItemDirectoryFacade implements FrozenItemDirectory {
 				.filter(item -> item.belongsTo(householdId))
 				.map(item -> new ItemDescription(item.getId(), item.getProductName(), item.getFrozenOn(),
 						item.getBestBefore().date()));
+	}
+
+	/**
+	 * A read model in one query. Loading each aggregate would cost two queries per item (the item and its
+	 * withdrawals), and the freeze page asks for the last item of every free label.
+	 */
+	@Override
+	public Map<FrozenItemId, ItemDescription> describeAll(HouseholdId householdId,
+			Collection<FrozenItemId> itemIds) {
+		return queries.descriptions(householdId, itemIds);
 	}
 
 }

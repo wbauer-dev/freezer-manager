@@ -3,6 +3,7 @@ package app.freezer.inventory.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +52,12 @@ public class FreezerManagement {
 	}
 
 	public void removeCompartment(HouseholdMember member, FreezerId freezerId, CompartmentId compartmentId) {
-		var freezer = freezerOf(member, freezerId);
+		var freezer = lockedFreezerOf(member, freezerId);
+		// First make sure it is a compartment of this freezer: whether another household's compartment is empty is
+		// none of the member's business.
+		if (freezer.compartment(compartmentId).isEmpty()) {
+			throw new IllegalArgumentException("inventory.compartment.unknown");
+		}
 		// Deliberately not an invariant of the Freezer aggregate: it would have to load all items to know.
 		if (items.anyInCompartment(compartmentId)) {
 			throw new InventoryRuleViolation("inventory.compartment.not-empty");
@@ -61,7 +67,7 @@ public class FreezerManagement {
 	}
 
 	public void removeFreezer(HouseholdMember member, FreezerId freezerId) {
-		var freezer = freezerOf(member, freezerId);
+		var freezer = lockedFreezerOf(member, freezerId);
 		// Like for compartments: whether the freezer is empty is a question about the items, so it is asked here.
 		if (items.anyInFreezer(freezerId)) {
 			throw new InventoryRuleViolation("inventory.freezer.not-empty");
@@ -89,8 +95,19 @@ public class FreezerManagement {
 	}
 
 	private Freezer freezerOf(HouseholdMember member, FreezerId freezerId) {
-		return freezers.findById(freezerId)
-				.filter(freezer -> freezer.belongsTo(member.householdId()) && !freezer.isRemoved())
+		return inUse(member, freezers.findById(freezerId));
+	}
+
+	/**
+	 * The freezer, locked until the transaction ends: an emptiness check only holds while nobody can put an item in
+	 * at the same time (see Freezers.findAndLock).
+	 */
+	private Freezer lockedFreezerOf(HouseholdMember member, FreezerId freezerId) {
+		return inUse(member, freezers.findAndLock(freezerId));
+	}
+
+	private static Freezer inUse(HouseholdMember member, Optional<Freezer> freezer) {
+		return freezer.filter(found -> found.belongsTo(member.householdId()) && !found.isRemoved())
 				.orElseThrow(() -> new InventoryNotFoundException("inventory.freezer.not-found"));
 	}
 

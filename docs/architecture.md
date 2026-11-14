@@ -32,7 +32,9 @@ one bounded context: `household`, `catalog`, `inventory`, `labeling`, `media`, `
   that other modules may use. Sub-packages are internal.
 - Modules talk to each other preferably through **events**. Spring Modulith stores every event
   publication in the `event_publication` table within the sending transaction (transactional
-  outbox) and resubmits incomplete ones after a restart.
+  outbox) and resubmits incomplete ones after a restart. A handled publication is deleted
+  (`completion-mode: delete`); failed ones at least five minutes old are resubmitted every five minutes
+  (`FailedEventResubmission`, in the application's base package next to the security configuration).
 - A module reacts to another module's events with `@ApplicationModuleListener`: after the sender's
   transaction committed, asynchronously, in a transaction of its own. Example: Labeling follows
   Inventory (`ItemFrozen`, `ItemConsumed`, …) and never calls it. Reactions must tolerate events
@@ -78,7 +80,7 @@ The ring annotations (jMolecules, in `package-info.java`) make the onion archite
 | Optimistic locking | `@Version` on every aggregate. It also tells Spring Data whether an aggregate is new, because identifiers are assigned by the domain, not the database |
 | Many members, one aggregate | The shopping list is one aggregate that several members change at once. Its commands are idempotent or merge, so `ShoppingListManagement` runs each in its own `TransactionTemplate` and applies a command that collided (optimistic lock, or two first inserts) again to the fresh list |
 | Time | Use cases take the current time from the injected `Clock`; domain methods receive it as a parameter (`takeOut(..., now)`), so aggregates stay deterministic in tests |
-| Rules spanning several aggregates | Checked in the application service and named as such, e.g. unique freezer names, "only empty compartments can be removed". Backed by unique indexes where races matter |
+| Rules spanning several aggregates | Checked in the application service and named as such, e.g. unique freezer names, "only empty compartments can be removed". Backed by unique indexes where races matter. Where no index fits, a row lock does: putting an item into a freezer and removing a compartment or the freezer load the freezer with `Freezers.findAndLock` (`select … for update`), so they run one after the other and the second sees what the first did |
 | Read models | CQRS light: the application layer defines a query interface (`InventoryQueries`) returning read-only records; the persistence adapter implements it with plain SQL (`JdbcClient`). Domain rules are reused for derived values, e.g. the expiry status |
 
 Validation lives in the domain (it is the source of truth). Request records repeat simple limits
@@ -151,6 +153,9 @@ with Bean Validation for early, friendly error messages.
   (Inventory). Neither backend module calls the other's commands.
 - Login with `angular-auth-oidc-client` (authorization code flow with PKCE). An interceptor adds the
   access token to calls to `/api/`. The dev server proxies `/api` to the backend on port 8080.
+- When the session has ended — the token can no longer be renewed, or the API answers 401 — `SessionExpiry` starts a
+  new login and brings the user back to the same page (at most once per navigation, and not again before the API
+  has accepted a call, so a backend that rejects every token cannot cause a login loop).
 - Angular Material with a custom Material 3 theme ("Fjord": cool neutrals, one muted steel-blue accent,
   frosted-glass surfaces; light and dark mode follow the system). Palette seeds are in
   `src/styles/_theme-colors.scss`, design tokens in `src/styles.scss`. Status colours carry meaning: muted teal
@@ -160,7 +165,8 @@ with Bean Validation for early, friendly error messages.
 - CSS `light-dark()` only accepts colours. Shadows and gradients that differ between light and dark mode are
   switched in the `prefers-color-scheme: dark` block of `src/styles.scss`.
 - Photos need the access token, which an `<img src>` cannot send. `PhotoLoader` loads them through
-  `HttpClient` and shows them as object URLs, once per session (photos never change).
+  `HttpClient` and shows them as object URLs, once per session (photos never change). Only the last few
+  large photos are kept; a photo that could not be loaded is tried again the next time it is shown.
 - Pages compose data from several contexts where the user needs it, e.g. the eat-first list (Inventory)
   shows each item's category emoji by looking up the product (Catalog) — the backend modules stay separate.
 - The **scanner** (`labeling/scanner-page.ts`) reads QR codes with the browser's `BarcodeDetector` where it supports

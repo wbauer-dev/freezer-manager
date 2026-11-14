@@ -6,7 +6,14 @@ import static app.freezer.media.TestImages.read;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.CRC32;
+
+import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
 
@@ -47,9 +54,44 @@ class Java2dImageProcessorTests {
 	}
 
 	@Test
+	void decodesLargePhotosWithOnlyEveryNthPixel() throws IOException {
+		assertThat(Java2dImageProcessor.subsampling(3200, 2400)).isEqualTo(1);
+		assertThat(Java2dImageProcessor.subsampling(4032, 3024)).isEqualTo(2);
+		assertThat(Java2dImageProcessor.subsampling(100, 9601)).isEqualTo(4);
+
+		var gray = new BufferedImage(4000, 3000, BufferedImage.TYPE_BYTE_GRAY);
+		var png = new ByteArrayOutputStream();
+		ImageIO.write(gray, "png", png);
+		var photo = processor.process(png.toByteArray());
+
+		assertThat(photo.width()).isEqualTo(1600);
+		assertThat(photo.height()).isEqualTo(1200);
+	}
+
+	@Test
+	void rejectsSmallFilesThatClaimGiganticImages() {
+		// 7071 × 7071 pixels with 16 bits per channel and alpha would take 400 MB once decoded.
+		assertThatThrownBy(() -> processor.process(pngHeader(7071, 7071)))
+				.isInstanceOf(InvalidImageException.class).hasMessage("media.photo.too-many-pixels");
+		assertThat(5000L * 5000).isLessThanOrEqualTo(Java2dImageProcessor.MAX_PIXELS);
+		assertThatThrownBy(() -> processor.process(pngHeader(5000, 5001)))
+				.hasMessage("media.photo.too-many-pixels");
+	}
+
+	@Test
 	void rejectsDataThatIsNoImage() {
 		assertThatThrownBy(() -> processor.process("not a photo".getBytes(StandardCharsets.UTF_8)))
 				.isInstanceOf(InvalidImageException.class);
+	}
+
+	/** Only the start of a PNG: a few bytes that claim an image of the given size, 16 bits per channel with alpha. */
+	private static byte[] pngHeader(int width, int height) {
+		var header = ByteBuffer.allocate(17).put("IHDR".getBytes(StandardCharsets.US_ASCII)).putInt(width)
+				.putInt(height).put(new byte[] { 16, 6, 0, 0, 0 }).array();
+		var crc = new CRC32();
+		crc.update(header);
+		return ByteBuffer.allocate(33).put(new byte[] { (byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n' })
+				.putInt(13).put(header).putInt((int) crc.getValue()).array();
 	}
 
 }

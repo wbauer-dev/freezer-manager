@@ -1,0 +1,244 @@
+@if (household.isLoading() && !household.hasValue()) {
+  @for (i of [0, 1]; track i) {
+    <div class="skeleton row-skeleton"></div>
+  }
+} @else if (household.error() && !household.hasValue()) {
+  <section class="glass panel load-error rise" role="alert">
+    <mat-icon>cloud_off</mat-icon>
+    <p i18n="@@members.loadError">The members could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="household.reload()">
+      <mat-icon>refresh</mat-icon>
+      <span i18n="@@members.retry">Try again</span>
+    </button>
+  </section>
+}
+
+@if (household.hasValue()) {
+  @let h = household.value();
+  <div class="members">
+    @for (member of h.members; track member.userId) {
+      <div class="member glass rise" [style.--i]="$index">
+        <div class="member-row">
+          <app-initials-avatar [name]="member.displayName" [size]="48" />
+          <div class="info">
+            <span class="name">
+              {{ member.displayName }}
+              @if (member.me) {
+                <span class="you" i18n="@@members.you">(you)</span>
+              }
+            </span>
+            <span class="since" i18n="@@members.since"
+              >since {{ member.joinedAt | date: 'mediumDate' }}</span
+            >
+          </div>
+          <span class="role" [class.owner]="member.role === 'OWNER'">
+            <mat-icon>{{ member.role === 'OWNER' ? 'crown' : 'person' }}</mat-icon>
+            @if (member.role === 'OWNER') {
+              <span i18n="@@members.owner">Owner</span>
+            } @else {
+              <span i18n="@@members.member">Member</span>
+            }
+          </span>
+          @if (isOwner() && !member.me) {
+            <div class="actions">
+              @if (member.role === 'MEMBER') {
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="make-owner"
+                  [disabled]="busy()"
+                  [matTooltip]="makeOwnerLabel(member)"
+                  [attr.aria-label]="makeOwnerLabel(member)"
+                  (click)="pending.set({ action: 'make-owner', userId: member.userId })"
+                >
+                  <mat-icon>add_moderator</mat-icon>
+                </button>
+              }
+              <button
+                mat-icon-button
+                type="button"
+                class="remove"
+                [disabled]="busy()"
+                [matTooltip]="removeLabel(member)"
+                [attr.aria-label]="removeLabel(member)"
+                (click)="pending.set({ action: 'remove', userId: member.userId })"
+              >
+                <mat-icon>person_remove</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (isPending(member, 'remove')) {
+          <div class="confirm" role="alertdialog" [attr.aria-label]="removeLabel(member)">
+            <mat-icon>help_outline</mat-icon>
+            <span i18n="@@members.confirmRemoval"
+              >Remove <strong>{{ member.displayName }}</strong> from the household? They can no
+              longer see its freezers and shopping list.</span
+            >
+            <div class="confirm-actions">
+              <button mat-button type="button" (click)="pending.set(null)">
+                <span i18n="@@common.cancel">Cancel</span>
+              </button>
+              <button
+                mat-flat-button
+                type="button"
+                class="danger confirm-remove"
+                (click)="remove(member)"
+              >
+                <span i18n="@@common.remove">Remove</span>
+              </button>
+            </div>
+          </div>
+        } @else if (isPending(member, 'make-owner')) {
+          <div
+            class="confirm owner-confirm"
+            role="alertdialog"
+            [attr.aria-label]="makeOwnerLabel(member)"
+          >
+            <mat-icon>help_outline</mat-icon>
+            <span i18n="@@members.confirmMakeOwner"
+              >Make <strong>{{ member.displayName }}</strong> an owner? Owners invite and remove
+              members, and they stay owners until they leave.</span
+            >
+            <div class="confirm-actions">
+              <button mat-button type="button" (click)="pending.set(null)">
+                <span i18n="@@common.cancel">Cancel</span>
+              </button>
+              <button
+                mat-flat-button
+                type="button"
+                class="confirm-make-owner"
+                (click)="makeOwner(member)"
+              >
+                <span i18n="@@members.makeOwner">Make owner</span>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  @if (isOwner()) {
+    <section class="glass panel invite rise" [style.--i]="h.members.length">
+      <div class="invite-head">
+        <span class="invite-icon"><mat-icon>group_add</mat-icon></span>
+        <div>
+          <h2 i18n="@@members.invite.title">Invite someone</h2>
+          <p class="hint" i18n="@@members.invite.hint">
+            Send them a link. It works once and expires after 7 days.
+          </p>
+        </div>
+      </div>
+      <button
+        mat-flat-button
+        type="button"
+        class="cta create-invitation"
+        [disabled]="busy()"
+        (click)="invite()"
+      >
+        <mat-icon>add_link</mat-icon>
+        <span i18n="@@members.invite.create">Create invitation link</span>
+      </button>
+
+      @if (invitations.hasValue() && invitations.value().length > 0) {
+        <h3 i18n="@@members.invitations.title">Open invitations</h3>
+        <ul class="invitations">
+          @for (invitation of invitations.value(); track invitation.code) {
+            <li class="invitation" [class.created]="invitation.code === created()">
+              <input
+                class="link"
+                readonly
+                [value]="link(invitation)"
+                (focus)="$any($event.target).select()"
+                aria-label="Invitation link"
+                i18n-aria-label="@@members.invitations.link"
+              />
+              <span class="expires" i18n="@@members.invitations.expires"
+                >expires {{ invitation.expiresAt | date: 'mediumDate' }}</span
+              >
+              <span class="invitation-actions">
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="copy"
+                  matTooltip="Copy link"
+                  i18n-matTooltip="@@members.invitations.copy"
+                  aria-label="Copy link"
+                  i18n-aria-label="@@members.invitations.copy"
+                  (click)="copy(invitation)"
+                >
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+                @if (canShare) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="share"
+                    matTooltip="Share link"
+                    i18n-matTooltip="@@members.invitations.share"
+                    aria-label="Share link"
+                    i18n-aria-label="@@members.invitations.share"
+                    (click)="share(invitation, h.name)"
+                  >
+                    <mat-icon>share</mat-icon>
+                  </button>
+                }
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="revoke"
+                  [disabled]="busy()"
+                  matTooltip="Revoke invitation"
+                  i18n-matTooltip="@@members.invitations.revoke"
+                  aria-label="Revoke invitation"
+                  i18n-aria-label="@@members.invitations.revoke"
+                  (click)="revoke(invitation)"
+                >
+                  <mat-icon>link_off</mat-icon>
+                </button>
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  <p class="founded rise">
+    <mat-icon>cake</mat-icon>
+    <span i18n="@@members.founded">Household founded {{ h.foundedAt | date: 'longDate' }}</span>
+  </p>
+
+  <div class="leave-area rise">
+    @if (confirmingLeave()) {
+      <div class="confirm" role="alertdialog">
+        <mat-icon>help_outline</mat-icon>
+        <span i18n="@@members.leave.confirm"
+          >Leave <strong>{{ h.name }}</strong>? You can no longer see its freezers and shopping list
+          until someone invites you again.</span
+        >
+        <div class="confirm-actions">
+          <button mat-button type="button" (click)="confirmingLeave.set(false)">
+            <span i18n="@@common.cancel">Cancel</span>
+          </button>
+          <button mat-flat-button type="button" class="danger confirm-leave" (click)="leave(h)">
+            <span i18n="@@members.leave.action">Leave household</span>
+          </button>
+        </div>
+      </div>
+    } @else {
+      <button
+        mat-stroked-button
+        type="button"
+        class="leave"
+        [disabled]="busy()"
+        (click)="confirmingLeave.set(true)"
+      >
+        <mat-icon>logout</mat-icon>
+        <span i18n="@@members.leave.action">Leave household</span>
+      </button>
+    }
+  </div>
+}

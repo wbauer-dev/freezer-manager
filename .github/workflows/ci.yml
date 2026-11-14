@@ -64,3 +64,25 @@ jobs:
           }
       - run: npm test -- --watch=false
       - run: npm run build
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compose files are valid
+        run: |
+          docker compose config --quiet
+          docker compose --profile app config --quiet
+      - name: The realms differ only in the demo users and the curl client
+        run: |
+          diff <(jq -S 'del(.users) | .clients |= map(select(.clientId != "freezer-dev-cli"))' infra/keycloak/dev/freezer-realm.json) \
+               <(jq -S . infra/keycloak/lan/freezer-realm.json)
+      - name: Build the backend and frontend images
+        run: docker compose --profile app build
+      # The image's entrypoint renders the template and creates a self-signed certificate first; the proxied hosts
+      # only have to resolve.
+      - name: nginx accepts its configuration
+        run: >-
+          docker run --rm --add-host backend:127.0.0.1 --add-host keycloak:127.0.0.1
+          -e FREEZER_URL=https://192.168.1.20:8443 freezer-frontend:local nginx -t

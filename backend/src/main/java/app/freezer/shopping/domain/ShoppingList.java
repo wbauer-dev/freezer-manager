@@ -23,7 +23,8 @@ import app.freezer.sharedkernel.InvalidValueException;
  * <p>
  * There is at most one <em>open</em> entry for the same thing: adding a product (or the same free text) again adds
  * its quantity note to the open entry instead of listing it twice. Ticked-off entries stay on the list, in the basket,
- * until the shopping is done.
+ * until the shopping is done. The one exception: unticking an entry whose quantity note no longer fits into the open
+ * entry for the same thing leaves both open.
  * <p>
  * Ticking off, unticking and removing are idempotent, and an entry that is gone is simply ignored: another member may
  * have removed it a moment earlier. That is what allows a change that collided with another member's change to be
@@ -85,20 +86,23 @@ public class ShoppingList implements AggregateRoot<ShoppingList, HouseholdId> {
 
 	/**
 	 * Puts a ticked-off entry back on the list. If the same thing was added again in the meantime, the two entries
-	 * become one.
+	 * become one — as long as their quantity notes together fit; otherwise both stay on the list. Unticking never
+	 * fails: it must stay idempotent, so that a change that collided can be applied again.
 	 */
 	public void uncheck(EntryId entryId) {
-		var entry = find(entryId).filter(checked -> !checked.isOpen());
-		if (entry.isEmpty()) {
+		var checked = find(entryId).filter(entry -> !entry.isOpen());
+		if (checked.isEmpty()) {
 			return;
 		}
-		var open = openEntryFor(entry.get().productId(), entry.get().name());
+		var entry = checked.get();
+		var open = openEntryFor(entry.productId(), entry.name())
+				.filter(other -> fits(joined(other.quantity(), entry.quantity())));
 		if (open.isPresent()) {
-			replace(open.get(), open.get().withQuantity(merged(open.get().quantity(), entry.get().quantity())));
-			entries.remove(entry.get());
+			replace(open.get(), open.get().withQuantity(joined(open.get().quantity(), entry.quantity())));
+			entries.remove(entry);
 		}
 		else {
-			replace(entry.get(), entry.get().unchecked());
+			replace(entry, entry.unchecked());
 		}
 	}
 
@@ -169,13 +173,21 @@ public class ShoppingList implements AggregateRoot<ShoppingList, HouseholdId> {
 
 	/** "500 g" and "1 kg" become "500 g + 1 kg"; a missing note keeps the other one. */
 	private static String merged(String quantity, String added) {
+		return validQuantity(joined(quantity, added));
+	}
+
+	private static String joined(String quantity, String added) {
 		if (quantity == null) {
 			return added;
 		}
 		if (added == null) {
 			return quantity;
 		}
-		return validQuantity(quantity + QUANTITY_SEPARATOR + added);
+		return quantity + QUANTITY_SEPARATOR + added;
+	}
+
+	private static boolean fits(String quantity) {
+		return quantity == null || quantity.length() <= MAX_QUANTITY_LENGTH;
 	}
 
 	private static String validName(String name) {

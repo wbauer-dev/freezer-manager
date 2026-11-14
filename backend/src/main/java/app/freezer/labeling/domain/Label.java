@@ -62,8 +62,14 @@ public class Label implements AggregateRoot<Label, LabelCode> {
 		return new Label(LabelCode.generate(), householdId, LabelKind.PERSISTENT, LabelState.FREE, null, now, null);
 	}
 
-	/** Puts a free label on an item that was just frozen. */
+	/**
+	 * Puts a free label on an item that was just frozen. Attaching it again to the item it is on changes nothing, so
+	 * an event that is delivered twice does no harm.
+	 */
 	public void attach(FrozenItemId item) {
+		if (state == LabelState.ATTACHED && item.equals(itemId)) {
+			return;
+		}
 		if (state != LabelState.FREE) {
 			throw new LabelingRuleViolation("labeling.label." + state.name().toLowerCase(Locale.ROOT).replace('_', '-'),
 					code.formatted());

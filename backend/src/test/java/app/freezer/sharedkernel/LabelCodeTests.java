@@ -2,6 +2,7 @@ package app.freezer.sharedkernel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,16 @@ class LabelCodeTests {
 	void rejectsWrongLengthAndCharacters() {
 		assertThatIllegalArgumentException().isThrownBy(() -> LabelCode.parse("K7Q2"));
 		assertThatIllegalArgumentException().isThrownBy(() -> LabelCode.of("K7Q2M9XU"));
+		assertThatIllegalArgumentException().isThrownBy(() -> LabelCode.parse(null));
+	}
+
+	@Test
+	void reportsAnInvalidCodeWithAMessageCode() {
+		assertThatThrownBy(() -> LabelCode.parse("K7Q2-M9X"))
+				.isInstanceOfSatisfying(InvalidValueException.class, e -> {
+					assertThat(e.getMessage()).isEqualTo("sharedkernel.label-code.invalid");
+					assertThat(e.getArguments()).containsExactly(LabelCode.LENGTH);
+				});
 	}
 
 }

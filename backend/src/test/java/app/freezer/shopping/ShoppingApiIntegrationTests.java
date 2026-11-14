@@ -130,6 +130,31 @@ class ShoppingApiIntegrationTests {
 		assertThat(get(api("/shopping-list"))).bodyJson().extractingPath("$.entries[0].checked").isEqualTo(false);
 	}
 
+	/**
+	 * A member of another household uses this household's ids under the URLs of their own household. Products are
+	 * unknown there; entries are, too — commands for entries that are not on the list are ignored (another member may
+	 * have removed them), so they change nothing in either household.
+	 */
+	@Test
+	void idsOfAnotherHouseholdChangeNothing() {
+		var milk = json(post(api("/shopping-list/entries"), "{ \"name\": \"Milk\" }"), "$.entries[0].id");
+		var carol = user("carol-" + UUID.randomUUID(), "Carol");
+		var carols = "/api/households/" + JsonPath.read(content(mvc.post().uri("/api/households").with(carol)
+				.contentType(MediaType.APPLICATION_JSON).content("{ \"name\": \"Carol's\" }").exchange()), "$.id")
+				+ "/shopping-list";
+
+		assertThat(mvc.post().uri(carols + "/entries").with(carol).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"productId\": \"%s\" }".formatted(peas))).hasStatus(HttpStatus.BAD_REQUEST);
+		assertThat(mvc.post().uri(carols + "/entries/" + milk + "/check").with(carol)).hasStatusOk().bodyJson()
+				.extractingPath("$.entries").asArray().isEmpty();
+		assertThat(mvc.delete().uri(carols + "/entries/" + milk).with(carol)).hasStatusOk().bodyJson()
+				.extractingPath("$.entries").asArray().isEmpty();
+
+		assertThat(get(api("/shopping-list"))).bodyJson().isLenientlyEqualTo("""
+				{ "entries": [ { "id": "%s", "name": "Milk", "checked": false } ] }
+				""".formatted(milk));
+	}
+
 	private String api(String path) {
 		return "/api/households/" + household + path;
 	}

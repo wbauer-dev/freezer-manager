@@ -1,11 +1,14 @@
 package app.freezer.inventory.persistence;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Component;
 import app.freezer.catalog.ProductId;
 import app.freezer.household.HouseholdId;
 import app.freezer.inventory.FrozenItemId;
+import app.freezer.inventory.ItemDescription;
 import app.freezer.inventory.application.EatFirstEntry;
 import app.freezer.inventory.application.InventoryQueries;
 import app.freezer.inventory.domain.BestBefore;
@@ -73,6 +77,26 @@ class JdbcInventoryQueries implements InventoryQueries {
 					counts.put(CompartmentId.of(row.getObject("compartment_id", UUID.class)), row.getInt("items"));
 				});
 		return counts;
+	}
+
+	@Override
+	public Map<FrozenItemId, ItemDescription> descriptions(HouseholdId householdId,
+			Collection<FrozenItemId> itemIds) {
+		if (itemIds.isEmpty()) {
+			return Map.of();
+		}
+		return jdbc.sql("""
+				select id, product_name, frozen_on, best_before_date from inventory.frozen_item
+				where household_id = :householdId and id in (:itemIds)
+				""")
+				.param("householdId", householdId.id())
+				.param("itemIds", itemIds.stream().map(FrozenItemId::id).distinct().toList())
+				.query((row, number) -> new ItemDescription(FrozenItemId.of(row.getObject("id", UUID.class)),
+						row.getString("product_name"), row.getObject("frozen_on", LocalDate.class),
+						row.getObject("best_before_date", LocalDate.class)))
+				.list()
+				.stream()
+				.collect(Collectors.toMap(ItemDescription::itemId, Function.identity()));
 	}
 
 }

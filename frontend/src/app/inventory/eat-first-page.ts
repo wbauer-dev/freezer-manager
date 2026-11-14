@@ -11,6 +11,7 @@ import { FoodCategory, Product } from '../catalog/catalog.model';
 import { DATE_FORMAT, freshness, timeLeft } from '../shared/dates';
 import { PhotoLoader } from '../media/photo-loader';
 import { FoodAvatar } from '../shared/food-avatar';
+import { LoadError, reloadFailed } from '../shared/load-error';
 import { EatFirstEntry, ExpiryStatus, Freezer } from './inventory.model';
 
 type Filter = 'ALL' | 'EXPIRING_SOON' | 'EXPIRED';
@@ -31,7 +32,15 @@ const GROUPS: { status: ExpiryStatus; title: string; icon: string }[] = [
  */
 @Component({
   selector: 'app-eat-first-page',
-  imports: [DatePipe, RouterLink, MatButtonModule, MatIconModule, MatRippleModule, FoodAvatar],
+  imports: [
+    DatePipe,
+    RouterLink,
+    MatButtonModule,
+    MatIconModule,
+    MatRippleModule,
+    FoodAvatar,
+    LoadError,
+  ],
   templateUrl: './eat-first-page.html',
   styleUrl: './eat-first-page.scss',
 })
@@ -96,6 +105,10 @@ export class EatFirstPage {
     })).filter((group) => group.entries.length > 0),
   );
 
+  protected reload(): void {
+    reloadFailed(this.entries, this.freezers);
+  }
+
   protected toggleFilter(filter: Filter): void {
     this.filter.update((current) => (current === filter ? 'ALL' : filter));
   }
@@ -109,7 +122,7 @@ export class EatFirstPage {
   }
 
   protected timeLeft(entry: EatFirstEntry): string {
-    return timeLeft(entry.bestBefore);
+    return timeLeft(entry.bestBefore, entry.expiryStatus);
   }
 
   protected statusClass(status: ExpiryStatus): string {

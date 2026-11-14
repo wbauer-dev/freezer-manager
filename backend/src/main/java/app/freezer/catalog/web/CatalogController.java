@@ -32,6 +32,9 @@ import jakarta.validation.constraints.Size;
 
 /**
  * The household's catalog. The request's language decides which system defaults a household starts with.
+ * <p>
+ * Requests that read the catalog or add a category start it first, if needed, in a transaction of its own — before and
+ * outside the use case's transaction, so that a request never holds two database connections.
  */
 @RestController
 class CatalogController {
@@ -69,14 +72,16 @@ class CatalogController {
 
 	@GetMapping("/api/households/{householdId}/food-categories")
 	List<FoodCategoryView> categories(HouseholdMember member, Locale locale) {
-		return administration.categories(member, locale.getLanguage()).stream().map(FoodCategoryView::of).toList();
+		setup.ensureStarted(member.householdId(), locale.getLanguage());
+		return administration.categories(member).stream().map(FoodCategoryView::of).toList();
 	}
 
 	@PostMapping("/api/households/{householdId}/food-categories")
 	ResponseEntity<FoodCategoryView> defineCategory(HouseholdMember member, Locale locale,
 			@Valid @RequestBody CategoryRequest request) {
-		var category = administration.defineCategory(member, request.name(), request.emoji(), request.shelfLifeMonths(),
-				locale.getLanguage());
+		setup.ensureStarted(member.householdId(), locale.getLanguage());
+		var category = administration.defineCategory(member, request.name(), request.emoji(),
+				request.shelfLifeMonths());
 		return ResponseEntity
 				.created(URI.create("/api/households/" + member.householdId() + "/food-categories/" + category.getId()))
 				.body(FoodCategoryView.of(category));
@@ -97,7 +102,8 @@ class CatalogController {
 
 	@GetMapping("/api/households/{householdId}/products")
 	List<ProductView> products(HouseholdMember member, Locale locale) {
-		return administration.products(member, locale.getLanguage()).stream().map(ProductView::of).toList();
+		setup.ensureStarted(member.householdId(), locale.getLanguage());
+		return administration.products(member).stream().map(ProductView::of).toList();
 	}
 
 	@PostMapping("/api/households/{householdId}/products")

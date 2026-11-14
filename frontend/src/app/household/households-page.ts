@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
-import { FormField, form, maxLength, required, submit } from '@angular/forms/signals';
+import { FormField, form, maxLength, required, submit, validate } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +11,7 @@ import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { firstValueFrom } from 'rxjs';
 
 import { InitialsAvatar } from '../shared/initials-avatar';
+import { problemMessage } from '../shared/problem-message';
 import { HouseholdApi } from './household-api';
 import { HouseholdSummary, MAX_HOUSEHOLD_NAME_LENGTH } from './household.model';
 
@@ -55,9 +56,14 @@ export class HouseholdsPage {
 
   protected readonly foundModel = signal({ name: '' });
   protected readonly foundForm = form(this.foundModel, (household) => {
-    required(household.name, {
-      message: $localize`:@@common.validation.nameRequired:Please enter a name.`,
-    });
+    const nameRequired = $localize`:@@common.validation.nameRequired:Please enter a name.`;
+    required(household.name, { message: nameRequired });
+    // Spaces alone are no name: the backend trims the name and would reject it.
+    validate(household.name, ({ value }) =>
+      value() !== '' && value().trim() === ''
+        ? { kind: 'blank', message: nameRequired }
+        : undefined,
+    );
     maxLength(household.name, MAX_HOUSEHOLD_NAME_LENGTH, {
       message: $localize`:@@common.validation.maxLength:At most ${MAX_HOUSEHOLD_NAME_LENGTH}:max: characters.`,
     });
@@ -67,13 +73,18 @@ export class HouseholdsPage {
     event.preventDefault();
     await submit(this.foundForm, async (fields) => {
       try {
-        const household = await firstValueFrom(this.api.foundHousehold(fields.name().value()));
+        const household = await firstValueFrom(
+          this.api.foundHousehold(fields.name().value().trim()),
+        );
         await this.router.navigate(['/households', household.id]);
         return undefined;
-      } catch {
+      } catch (error) {
         return {
           kind: 'server',
-          message: $localize`:@@households.found.error:The household could not be created. Please try again.`,
+          message: problemMessage(
+            error,
+            $localize`:@@households.found.error:The household could not be created. Please try again.`,
+          ),
         };
       }
     });

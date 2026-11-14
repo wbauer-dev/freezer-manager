@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
@@ -97,4 +97,52 @@ describe('HouseholdsPage', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Please enter a name.');
   });
+
+  it('does not submit a name of only spaces', async () => {
+    const fixture = await render([]);
+
+    await submitName(fixture, '   ');
+
+    expect(fixture.nativeElement.textContent).toContain('Please enter a name.');
+    // afterEach: no request was sent
+  });
+
+  it('sends the name without surrounding spaces', async () => {
+    const fixture = await render([]);
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    await submitName(fixture, '  Miller family ');
+
+    const request = http.expectOne({ method: 'POST', url: '/api/households' });
+    expect(request.request.body).toEqual({ name: 'Miller family' });
+    request.flush({ id: '42', name: 'Miller family', foundedAt: '', myRole: 'OWNER', members: [] });
+    await settle();
+  });
+
+  it('shows why the backend rejected the household', async () => {
+    const fixture = await render([]);
+
+    await submitName(fixture, 'Miller family');
+    http
+      .expectOne({ method: 'POST', url: '/api/households' })
+      .flush(
+        { detail: 'A household name has at most 50 characters.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'A household name has at most 50 characters.',
+    );
+  });
+
+  async function submitName(fixture: ComponentFixture<HouseholdsPage>, name: string) {
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    input.value = name;
+    input.dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    await settle();
+    await fixture.whenStable();
+  }
 });

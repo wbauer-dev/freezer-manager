@@ -20,4 +20,7 @@ public interface Households extends Repository<Household, HouseholdId> {
 	/** Households the given user is a member of, ordered by name. */
 	List<Household> findAllWithMember(UserId userId);
 
+	/** The household that has an invitation with the given code, whether it is still valid or not. */
+	Optional<Household> findByInvitation(InvitationCode code);
+
 }

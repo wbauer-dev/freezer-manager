@@ -10,14 +10,19 @@ const RETURN_URL = 'freezer.returnUrl';
  */
 export const authGuard: CanActivateFn = (route, state) => {
   if (!inject(OidcSecurityService).authenticated().isAuthenticated) {
-    try {
-      sessionStorage.setItem(RETURN_URL, state.url);
-    } catch {
-      // Without storage, users land on the start page after logging in.
-    }
+    rememberReturnUrl(state.url);
   }
   return autoLoginPartialRoutesGuard(route, state);
 };
+
+/** Where to continue after logging in. */
+export function rememberReturnUrl(url: string): void {
+  try {
+    sessionStorage.setItem(RETURN_URL, url);
+  } catch {
+    // Without storage, users land on the start page after logging in.
+  }
+}
 
 /** The address remembered before logging in; read only once. */
 export function takeReturnUrl(): string | null {

@@ -18,6 +18,7 @@ export const routes: Routes = [
   {
     path: 'households/:householdId',
     canActivate: [authGuard],
+    canActivateChild: [authGuard],
     loadComponent: () => import('./household/household-shell').then((m) => m.HouseholdShell),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'eat-first' },
@@ -54,6 +55,12 @@ export const routes: Routes = [
         loadComponent: () => import('./household/members-page').then((m) => m.MembersPage),
       },
     ],
+  },
+  {
+    // Invitation links lead here; after logging in, the user joins the household.
+    path: 'join/:code',
+    canActivate: [authGuard],
+    loadComponent: () => import('./household/join-page').then((m) => m.JoinPage),
   },
   {
     // The scanner inside the app: camera, label, food, take out.

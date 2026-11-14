@@ -64,7 +64,7 @@ public class LabelSheet implements AggregateRoot<LabelSheet, HouseholdId> {
 
 	/**
 	 * Places all queued stickers: first on the free positions of the current sheet, then on new sheets. Empties the
-	 * queue; the last sheet printed on becomes the current sheet.
+	 * queue; the last sheet printed on becomes the current sheet. A sheet that is already full gets no page.
 	 */
 	public PrintJob print() {
 		if (queue.isEmpty()) {
@@ -73,13 +73,14 @@ public class LabelSheet implements AggregateRoot<LabelSheet, HouseholdId> {
 		var pages = new ArrayList<List<PrintJob.Placement>>();
 		var page = new ArrayList<PrintJob.Placement>();
 		for (var sticker : queue) {
-			var position = nextFreePosition();
-			if (position < 0) {
-				pages.add(page);
-				page = new ArrayList<>();
+			if (nextFreePosition() < 0) {
+				if (!page.isEmpty()) {
+					pages.add(page);
+					page = new ArrayList<>();
+				}
 				usedPositions.clear();
-				position = nextFreePosition();
 			}
+			var position = nextFreePosition();
 			usedPositions.add(new UsedPosition(position));
 			page.add(new PrintJob.Placement(position, sticker));
 		}
@@ -93,16 +94,25 @@ public class LabelSheet implements AggregateRoot<LabelSheet, HouseholdId> {
 		usedPositions.clear();
 	}
 
-	/**
-	 * Marks a position as used or free again, e.g. when a sticker was torn or misprinted.
-	 */
-	public void togglePosition(int position) {
+	/** Marks a position as used, e.g. when the sticker there was torn or misprinted. */
+	public void markUsed(int position) {
+		usedPositions.add(validPosition(position));
+	}
+
+	/** Marks a position as free again, e.g. when it was marked by mistake. */
+	public void markFree(int position) {
+		usedPositions.remove(validPosition(position));
+	}
+
+	public boolean isUsed(int position) {
+		return usedPositions.contains(new UsedPosition(position));
+	}
+
+	private UsedPosition validPosition(int position) {
 		if (!getFormat().contains(position)) {
 			throw new IllegalArgumentException("labeling.sheet.position-invalid");
 		}
-		if (!usedPositions.remove(new UsedPosition(position))) {
-			usedPositions.add(new UsedPosition(position));
-		}
+		return new UsedPosition(position);
 	}
 
 	/** The next free position on the current sheet, or -1 if it is full. */

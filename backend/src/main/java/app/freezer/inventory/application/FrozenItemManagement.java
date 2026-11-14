@@ -14,6 +14,7 @@ import app.freezer.inventory.DiscardReason;
 import app.freezer.inventory.FrozenItemId;
 import app.freezer.inventory.domain.BestBefore;
 import app.freezer.inventory.domain.Compartment;
+import app.freezer.inventory.domain.Freezer;
 import app.freezer.inventory.domain.Freezers;
 import app.freezer.inventory.domain.FrozenItem;
 import app.freezer.inventory.domain.FrozenItems;
@@ -50,7 +51,8 @@ public class FrozenItemManagement {
 	public FrozenItemId freeze(HouseholdMember member, FreezeCommand command) {
 		var product = catalog.findProduct(member.householdId(), command.productId())
 				.orElseThrow(() -> new IllegalArgumentException("inventory.product.unknown"));
-		var location = freezers.findById(command.freezerId())
+		// Locked, so the compartment cannot be removed while the item goes in (see Freezers.findAndLock).
+		var location = freezers.findAndLock(command.freezerId())
 				.filter(freezer -> freezer.belongsTo(member.householdId()))
 				.orElseThrow(() -> new IllegalArgumentException("inventory.freezer.unknown"))
 				.locationOf(command.compartmentId());
@@ -89,7 +91,9 @@ public class FrozenItemManagement {
 
 	public void undoTakeOut(HouseholdMember member, FrozenItemId itemId) {
 		var item = itemOf(member, itemId);
-		item.undoTakeOut(member.userId(), now());
+		// Locked like when freezing: the undo may bring the item back into its compartment.
+		var freezer = freezers.findAndLock(item.getLocation().freezerId()).orElseThrow();
+		item.undoTakeOut(member.userId(), now(), freezer, labelOnAnotherItem(item));
 		items.save(item);
 	}
 
@@ -102,12 +106,12 @@ public class FrozenItemManagement {
 	@Transactional(readOnly = true)
 	public ItemDetails details(HouseholdMember member, FrozenItemId itemId) {
 		var item = itemOf(member, itemId);
-		var freezer = freezers.findById(item.getLocation().freezerId()).orElseThrow();
+		var freezer = freezerOf(item);
 		var compartmentName = freezer.compartment(item.getLocation().compartmentId())
 				.map(Compartment::name)
 				.orElse(null);
 		return new ItemDetails(item, freezer.getName(), compartmentName, item.expiryStatusOn(today()),
-				item.canUndoTakeOut(member.userId(), now()));
+				item.canUndoTakeOut(member.userId(), now(), freezer, labelOnAnotherItem(item)));
 	}
 
 	@Transactional(readOnly = true)
@@ -119,6 +123,22 @@ public class FrozenItemManagement {
 		return items.findById(itemId)
 				.filter(item -> item.belongsTo(member.householdId()))
 				.orElseThrow(() -> new InventoryNotFoundException("inventory.item.not-found"));
+	}
+
+	/** The freezer the item is or was stored in. It is kept even when removed, so it always exists. */
+	private Freezer freezerOf(FrozenItem item) {
+		return freezers.findById(item.getLocation().freezerId()).orElseThrow();
+	}
+
+	/**
+	 * Whether another item in the household's freezers carries this item's label. That is only possible while this
+	 * item is out of the freezer, e.g. after its last portion was taken out: the label may have moved on since. Like
+	 * when freezing, this concerns all items of the household, so it is looked up here.
+	 */
+	private boolean labelOnAnotherItem(FrozenItem item) {
+		return !item.isInFreezer() && item.getLabelCode()
+				.map(label -> items.labelInUse(item.getHouseholdId(), label))
+				.orElse(false);
 	}
 
 	private PhotoId photoOf(HouseholdMember member, PhotoId photoId) {

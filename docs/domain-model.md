@@ -1,6 +1,6 @@
 # Freezer Manager — Domain Model
 
-> Status: **phase 1 complete** — Household & Access, Catalog (one per household, editable),
+> Status: **phase 1 complete** — Household & Access (members, roles, invitations), Catalog (one per household, editable),
 > Freezer Inventory, Labeling and Media are implemented, in English and German. Phase 2 (Shopping) has started:
 > the shared shopping list is implemented; live updates and staples are next. Decisions are recorded in [§ 8](#8-decisions).
 > How the code is organised is described in [architecture.md](architecture.md).
@@ -82,6 +82,7 @@ Module dependencies form a DAG (no cycles): Inventory must never call Labeling o
 |---|---|
 | **Household** | Group of members sharing freezers and a shopping list. All data belongs to exactly one household. |
 | **Member** | A user in a household, with role *Owner* or *Member*. |
+| **Invitation** | A link an owner sends so that someone can join the household. Works once, expires after 7 days. |
 | **Freezer** | A physical freezer of a household. Has one or more compartments. |
 | **Compartment** | A drawer or shelf in a freezer. |
 | **Frozen item** | One physical package or container in a freezer. Carries one label. |
@@ -149,11 +150,18 @@ Invariants and rules:
 1. While `IN_FREEZER`, at least one portion remains; you can't take out more portions than remain.
 2. **No refreezing:** taken-out portions can't be put back. Only exception: the member who
    took them out may undo their latest withdrawal within 10 minutes (wrong item scanned).
+   If that withdrawal consumed the item, it only comes back while its compartment still exists
+   (its freezer is not removed) and its label is not on another item by now (rule 6).
 3. Taking out the last portion makes the item `CONSUMED`.
 4. `BestBefore` is not before `FrozenOn`.
 5. Consumed and discarded items are read-only.
 6. Within a household, a label code belongs to at most one item that is `IN_FREEZER`
-   (enforced by a partial unique index; checked in the domain when freezing).
+   (enforced by a partial unique index). The application service checks it when freezing, and
+   when an undo would bring a consumed item back — it looks up whether another item carries the
+   label, and the item refuses the undo if so. Inventory only knows the codes on items still in
+   the freezer: it would accept the code of a `USED_UP` one-time label sent through the raw API,
+   and Labeling would then report a conflict. Inventory can't ask Labeling, because that would
+   create a module cycle.
 7. The location must be a freezer of the same household (checked by the application service).
 
 **Shelf-life policy (`BestBefore.calculate`):** best-before = frozen on + shelf life of the
@@ -221,6 +229,9 @@ its current sheet:
   six boxes, then print all six labels in one go.
 - When the sheet is full, printing continues on a new sheet. Members can start a new sheet
   manually or mark positions as unusable (torn, misprinted).
+- Members and Inventory's events (a new one-time label's sticker) change the sheet at the same time.
+  Like the shopping list (decision 26), a change that collided is applied again to the fresh sheet,
+  up to three times; the sheet's commands are idempotent, so this is safe.
 - **Scan resolution:** `FREE` → offer "freeze new item"; `ATTACHED` → show the item;
   `USED_UP` → "label already used, consumed on …"; unknown or belongs to another household →
   "unknown label" (never reveal other households' labels).
@@ -268,9 +279,19 @@ Each household has its own catalog; every member may change it.
 
 ### 5.4 Household & Access (generic)
 
-- **Aggregate `Household`**: name, members (`UserId`, role), invitations (single use, expire
-  after 7 days), warning period for "expiring soon".
-- Invariants: at least one owner; only owners invite or remove members.
+- **Aggregate `Household`** ✅: name, members (`UserId`, role), invitations (single use, expire
+  after 7 days) ✅, warning period for "expiring soon" (later, decision 13).
+- Invariants ✅, kept by the aggregate: at least one owner; only owners invite or remove members.
+- **Invitations** ✅: an owner creates one and sends its link (`/join/<code>`); the code is 128 random
+  bits, so it can't be guessed (decision 29). Owners see the open invitations and can revoke them. A
+  logged-in user who opens the link joins as *Member* and the invitation is used up. Someone who is
+  already a member simply lands in the household; the invitation stays open for whoever it was meant
+  for. Unknown, expired, used and revoked codes all get the same answer.
+- **Membership changes** ✅: owners remove members and make members owners; any member can leave.
+  The last owner makes someone else an owner before leaving, and the only member can't leave
+  (decision 30).
+- Two people changing the household at once (e.g. accepting the same invitation) collide on its
+  version: one of them gets "changed at the same time" and tries again.
 - Login, passwords and accounts are delegated to an identity provider — not modelled.
 - Tenant isolation: the application layer resolves the current household from the request and
   checks membership before any use case runs.
@@ -284,7 +305,8 @@ Each household has its own catalog; every member may change it.
   - At most one *open* entry for the same thing – the same product, or free text with the same name ignoring case.
     Adding it again merges the quantity notes: "500 g" and "1 kg" become "500 g + 1 kg". An entry in the basket
     doesn't count, so buying something again gives a new entry.
-  - Unticking an entry when the same thing was added again in the meantime merges the two.
+  - Unticking an entry when the same thing was added again in the meantime merges the two – unless the quantity
+    notes together would be too long; then both stay on the list, so unticking never fails.
   - Ticking off, unticking and removing are idempotent; an entry that is gone is ignored (another member may have
     been quicker).
   - "Done shopping" removes everything in the basket.
@@ -323,7 +345,8 @@ data of its two variants — *large* (≤ 1600 px) and *thumbnail* (≤ 400 px) 
 adapter, so loading the aggregate never loads megabytes.
 
 - The browser turns a photo the right way up (phones store the orientation separately) and scales
-  it down before uploading.
+  it down before uploading. A browser that cannot decode a photo sends the original; the server
+  then turns a JPEG upright from its Exif orientation itself.
 - The server decodes and re-encodes every upload. That rejects anything that is not an image and
   strips all metadata, including the location phone cameras embed.
 - Other contexts keep a `PhotoId` only and ask `MediaLibrary.contains(household, photo)` before
@@ -386,7 +409,7 @@ sequenceDiagram
 
 ## 8. Decisions
 
-1–11 agreed on 2026-11-13. 12–20 and 26–28 were decided during implementation and are open for review.
+1–11 agreed on 2026-11-13. 12–20 and 26–30 were decided during implementation and are open for review.
 
 | # | Topic | Decision |
 |---|---|---|
@@ -408,7 +431,7 @@ sequenceDiagram
 | 16 | Uniqueness of label codes | Random 40-bit codes, unique in practice; Inventory prevents the same code on two items in the freezer, Labeling reports the rare conflict |
 | 17 | Sheet format | 3 × 8 labels of 70 × 37 mm on A4, fixed for now; becomes a household setting later |
 | 18 | Photo storage | PostgreSQL behind a storage port — one container less; S3/MinIO would be another adapter |
-| 19 | Photo processing | Browser fixes orientation and scales down; server re-encodes (validation, no metadata) and makes the thumbnail |
+| 19 | Photo processing | Browser fixes orientation and scales down; server re-encodes (validation, no metadata) and makes the thumbnail. If the browser can't, it sends the original: the server applies a JPEG's Exif orientation before re-encoding and accepts up to 25 megapixels, decoded at no more than twice the large size |
 | 20 | Unused photos | Photos uploaded but never attached to an item are kept for now; a clean-up job comes later |
 | 21 | Labels vs. stickers | A label is only the identity (QR code); what is printed is a sticker with one of three layouts. "Reusable" labels are now called *persistent* (agreed 2026-11-13) |
 | 22 | Catalog ownership | One catalog per household, categories included; every member may change it, no extra role (agreed 2026-11-13) |
@@ -418,3 +441,5 @@ sequenceDiagram
 | 26 | Concurrent changes to the shopping list | The whole list stays one aggregate (decision 9). A command that collided with another member's change is applied again to the fresh list, up to three times; this is safe because the list's commands are idempotent or merge |
 | 27 | Free text on the shopping list | Allowed, and never added to the catalog – the catalog describes what goes into the freezer |
 | 28 | Product names on the shopping list | A snapshot taken when the entry is added, kept current through `ProductRenamed` (like frozen items, decision 24) |
+| 29 | Invitations | Part of the `Household` aggregate. A link with a code of 128 random bits (base64url, 22 characters), used once, valid for 7 days. Codes are stored as they are, so owners can copy an open invitation again; used and revoked invitations are deleted, expired ones cleared away when an owner invites again (at most 20 open). Unknown, expired, used and revoked codes all get the same 404, so codes can't be probed. Opening the link after logging in joins right away, without a confirmation step (open for review) |
+| 30 | The last owner | A household always has an owner. The last owner makes another member an owner before leaving; only owners remove members (403 otherwise), and they may remove each other, but never the last owner. The only member can't leave: rejecting is simpler than deleting a household whose freezers, items and lists live in other modules (open for review) |

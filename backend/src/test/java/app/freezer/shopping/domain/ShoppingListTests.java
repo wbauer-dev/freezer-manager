@@ -3,6 +3,7 @@ package app.freezer.shopping.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Instant;
 import java.util.stream.IntStream;
@@ -146,6 +147,20 @@ class ShoppingListTests {
 			assertThat(entry.id()).isEqualTo(open);
 			assertThat(entry.quantity()).isEqualTo("1 kg + 500 g");
 		});
+	}
+
+	@Test
+	void untickingNeverFailsWhenTheQuantitiesTogetherWouldBeTooLong() {
+		var bought = list.addFreeText("Milk", "x".repeat(40), ALICE, "Alice", NOW);
+		list.check(bought, BOB, "Bob", NOW);
+		var open = list.addFreeText("Milk", "y".repeat(20), ALICE, "Alice", NOW);
+
+		list.uncheck(bought);
+		list.uncheck(bought);
+
+		assertThat(list.getEntries()).extracting(Entry::id, Entry::quantity, Entry::isOpen).containsExactly(
+				tuple(bought, "x".repeat(40), true),
+				tuple(open, "y".repeat(20), true));
 	}
 
 	@Test

@@ -6,6 +6,12 @@
   </div>
 }
 
+@if (freezers.error()) {
+  <app-load-error (retry)="reload()">
+    <span i18n="@@freezers.loadError">Your freezers could not be loaded.</span>
+  </app-load-error>
+}
+
 @if (freezers.hasValue()) {
   <div class="grid">
     @for (freezer of freezers.value(); track freezer.id) {
