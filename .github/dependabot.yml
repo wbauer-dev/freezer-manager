@@ -51,3 +51,7 @@ updates:
     directories: [/frontend, /backend]
     schedule:
       interval: weekly
+    ignore:
+      # Odd Node releases never become LTS. The next LTS (28) is moved to by hand, together with node-version in CI.
+      - dependency-name: node
+        versions: ["27.x", "29.x", "31.x", "33.x"]

@@ -114,7 +114,7 @@ behind them — is in [docs/domain-model.md](docs/domain-model.md).
 
 ## Getting started
 
-Prerequisites: Java 25, Node 24, Docker.
+Prerequisites: Java 25, Node 26, Docker.
 
 ```bash
 docker compose up -d                      # PostgreSQL (5432) and Keycloak (8081)
