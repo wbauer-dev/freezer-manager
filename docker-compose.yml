@@ -50,6 +50,8 @@ services:
     image: freezer-backend:local
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/freezer
+      SPRING_DATASOURCE_USERNAME: freezer
+      SPRING_DATASOURCE_PASSWORD: freezer
       # Tokens come from Keycloak behind nginx; the signing keys are fetched inside the network.
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI: ${FREEZER_URL:-https://localhost:8443}/realms/freezer
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/freezer/protocol/openid-connect/certs
