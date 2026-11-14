@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import app.freezer.household.HouseholdMember;
 import app.freezer.inventory.FrozenItemDirectory;
 import app.freezer.inventory.FrozenItemId;
+import app.freezer.inventory.ItemDescription;
 import app.freezer.labeling.domain.Label;
 import app.freezer.labeling.domain.LabelSheet;
 import app.freezer.labeling.domain.LabelSheets;
@@ -51,6 +52,20 @@ public class LabelPrinting {
 		var sheet = sheetOf(member);
 		return new SheetOverview(sheet.getFormat(), sheet.getUsedPositions(), sheet.nextFreePosition(),
 				sheet.getQueue());
+	}
+
+	/**
+	 * The persistent labels that can be used for the next filling, each with what it held last (as Inventory knows
+	 * it), so members can tell their containers apart.
+	 */
+	@Transactional(readOnly = true)
+	public List<FreeLabel> freeLabels(HouseholdMember member) {
+		return labels.findFreePersistent(member.householdId()).stream()
+				.map(label -> new FreeLabel(label.getId(), label.getItemId()
+						.flatMap(item -> items.describe(member.householdId(), item))
+						.map(ItemDescription::productName)
+						.orElse(null)))
+				.toList();
 	}
 
 	@Transactional(readOnly = true)

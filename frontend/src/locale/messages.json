@@ -156,6 +156,8 @@
     "freeze.label.freePersistent": "{VAR_PLURAL, plural, =1 {1 free persistent label} other {{INTERPOLATION} free persistent labels}}",
     "freeze.label.existingHint": "e.g. a persistent one on a container",
     "freeze.label.code": "Code on the label",
+    "freeze.label.lastContents": "last: {$INTERPOLATION}",
+    "freeze.label.unused": "not used yet",
     "freeze.label.printContents": "Also print a sticker with the contents",
     "freeze.label.writeOnBox": " Or write on the box — scanning the label always shows what’s inside. ",
     "freeze.summary.yourItem": "Your item",

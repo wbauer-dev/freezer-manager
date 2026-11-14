@@ -36,8 +36,20 @@ describe('FreezePage', () => {
     http
       .expectOne('/api/households/h1/labels/stock')
       .flush({ freePersistent: freePersistentLabels, persistentInUse: 0 });
+    if (freePersistentLabels > 0) {
+      // Owned labels come first, so the page asks which ones are free (before waiting: stable means no requests).
+      await settle();
+      TestBed.tick();
+      http.expectOne('/api/households/h1/labels/free').flush(FREE_LABELS);
+    }
     await fixture.whenStable();
   }
+
+  const FREE_LABELS = [
+    { code: 'K7Q2M9XA', lastContents: 'Beef goulash' },
+    { code: 'P3RS1ST3', lastContents: null },
+    { code: 'W4TR5BXZ', lastContents: 'Chicken stock' },
+  ];
 
   afterEach(() => http.verify());
 
@@ -61,6 +73,15 @@ describe('FreezePage', () => {
   async function submitForm(): Promise<void> {
     element('form').dispatchEvent(new Event('submit'));
     await settle();
+  }
+
+  /** The suggestions in the autocomplete panel, which lives in an overlay outside the component. */
+  function options(): string[] {
+    return Array.from(document.querySelectorAll('mat-option')).map((option) =>
+      Array.from(option.querySelectorAll('.free-label-code, .free-label-last'))
+        .map((part) => (part.textContent ?? '').trim())
+        .join(' '),
+    );
   }
 
   function settle(): Promise<void> {
@@ -128,6 +149,27 @@ describe('FreezePage', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('Choose a category for the new product.');
+  });
+
+  it('suggests free labels by their code or by what they held last', async () => {
+    await open(3);
+    const field = fixture.nativeElement.querySelector('#label-code') as HTMLInputElement;
+    field.focus();
+    await fixture.whenStable();
+    expect(options()).toEqual([
+      'K7Q2-M9XA last: Beef goulash',
+      'P3RS-1ST3 not used yet',
+      'W4TR-5BXZ last: Chicken stock',
+    ]);
+
+    await enter('#label-code', 'goul');
+    expect(options()).toEqual(['K7Q2-M9XA last: Beef goulash']);
+    await enter('#label-code', 'w4t');
+    expect(options()).toEqual(['W4TR-5BXZ last: Chicken stock']);
+
+    (document.querySelector('mat-option') as HTMLElement).click();
+    await fixture.whenStable();
+    expect(field.value).toBe('W4TR-5BXZ');
   });
 
   it('prefers a persistent label the household owns and can print a contents sticker for it', async () => {

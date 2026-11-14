@@ -455,6 +455,18 @@
   }
 }
 
+// Suggestions for the code: the label, and what it held last to recognise the container.
+.free-label-code {
+  margin-right: 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+}
+
+.free-label-last {
+  color: var(--muted);
+  font: var(--mat-sys-body-small);
+}
+
 .print-contents {
   display: block;
   margin-top: 8px;

@@ -156,6 +156,8 @@
     "freeze.label.freePersistent": "{VAR_PLURAL, plural, =1 {1 freies Dauer-Etikett} other {{INTERPOLATION} freie Dauer-Etiketten}}",
     "freeze.label.existingHint": "z. B. ein Dauer-Etikett auf einer Dose",
     "freeze.label.code": "Code auf dem Etikett",
+    "freeze.label.lastContents": "zuletzt: {$INTERPOLATION}",
+    "freeze.label.unused": "noch nicht verwendet",
     "freeze.label.printContents": "Zusätzlich ein Etikett mit dem Inhalt drucken",
     "freeze.label.writeOnBox": " Oder auf die Dose schreiben — das Scannen des Etiketts zeigt immer, was drin ist. ",
     "freeze.summary.yourItem": "Dein Eintrag",

@@ -16,7 +16,7 @@ import { CatalogApi } from '../catalog/catalog-api';
 import { emojiByProduct } from '../catalog/catalog-lookup';
 import { FoodCategory, Product } from '../catalog/catalog.model';
 import { LabelingApi } from '../labeling/labeling-api';
-import { LabelStock } from '../labeling/labeling.model';
+import { FreeLabel, LabelStock } from '../labeling/labeling.model';
 import { MediaApi } from '../media/media-api';
 import { PhotoLoader } from '../media/photo-loader';
 import { preparePhoto } from '../media/prepare-photo';
@@ -90,6 +90,30 @@ export class FreezePage {
   protected readonly freePersistentLabels = computed(() =>
     this.labelStock.hasValue() ? this.labelStock.value().freePersistent : 0,
   );
+  /**
+   * The household's free persistent labels to pick from, loaded once "Use a label I have" is chosen. The address is a
+   * computed of its own, so typing in the form doesn't load them again.
+   */
+  private readonly freeLabelsUrl = computed(() =>
+    this.model().labelMode === 'existing'
+      ? `/api/households/${this.householdId()}/labels/free`
+      : undefined,
+  );
+  private readonly freeLabels = httpResource<FreeLabel[]>(() => this.freeLabelsUrl());
+  /** Free labels matching what was typed: part of the code, or of what the label held last. */
+  protected readonly labelSuggestions = computed(() => {
+    const labels = this.freeLabels.hasValue() ? this.freeLabels.value() : [];
+    const text = this.model().labelCode.trim().toLowerCase();
+    if (!text) {
+      return labels;
+    }
+    const code = normalizeLabelCode(text);
+    return labels.filter(
+      (label) =>
+        label.code.includes(code) || (label.lastContents?.toLowerCase().includes(text) ?? false),
+    );
+  });
+  protected readonly formatCode = formatLabelCode;
   protected readonly dateFormat = DATE_FORMAT;
   protected readonly portionCount = computed(() => this.model().portions || 1);
   /** For a persistent label: also print a sticker that shows what is inside. */
