@@ -3,6 +3,8 @@ package app.freezer.media.web;
 import java.util.Locale;
 
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,6 +34,13 @@ class MediaExceptionHandler {
 	@ExceptionHandler(PhotoNotFoundException.class)
 	ProblemDetail notFound(PhotoNotFoundException e, Locale locale) {
 		return problem(HttpStatus.NOT_FOUND, e, locale);
+	}
+
+	/** Photos are only ever added, never changed, so this is a safety net like in the other modules. */
+	@ExceptionHandler({ OptimisticLockingFailureException.class, DuplicateKeyException.class })
+	ProblemDetail changedConcurrently(Locale locale) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+				messages.getMessage("changed-concurrently", null, locale));
 	}
 
 	private ProblemDetail problem(HttpStatus status, RuntimeException e, Locale locale) {
