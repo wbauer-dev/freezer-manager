@@ -30,8 +30,9 @@ server {
         proxy_set_header X-Forwarded-Proto https;
     }
 
-    # Keycloak: login pages, tokens and the admin console. Tokens name this address as issuer.
-    location ~ ^/(realms|resources|admin|js)/ {
+    # Keycloak: the app's realm (login pages, tokens) and its static files. Tokens name this address as issuer.
+    # Neither the admin console nor other realms are reachable from here; Keycloak's own port is bound to localhost.
+    location ~ ^/(realms/freezer|resources|js)/ {
         proxy_pass http://keycloak:8080;
         proxy_set_header X-Forwarded-Host $http_host;
         proxy_set_header X-Forwarded-Proto https;
@@ -40,20 +41,23 @@ server {
         proxy_buffers 4 256k;
     }
 
-    # File names with a content hash (main-ABCD1234.js) never change: cache them for good.
-    location ~* "-[A-Z0-9]{8}\.(js|css)$" {
+    # File names with a content hash (main-ABCD1234.js, media/inter-...-ABCD1234.woff2) never change: cache them.
+    location ~* "-[A-Z0-9]{8}\.(js|css|woff2)$" {
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
     }
 
     # Translations keep their names; check for new versions.
     location /i18n/ {
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-cache";
         try_files $uri =404;
     }
 
     # Client-side routes (/households/..., /s/<label code>) all load the app.
     location / {
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-cache";
         try_files $uri $uri/ /index.html;
     }
