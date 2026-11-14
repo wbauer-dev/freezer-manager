@@ -15,12 +15,14 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.modulith.events.core.EventPublicationRegistry;
 import org.springframework.modulith.events.core.EventSerializer;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
@@ -79,6 +81,9 @@ class LabelingModuleTests {
 
 	@Autowired
 	LabelPrinting printing;
+
+	@Autowired
+	EventPublicationRegistry publications;
 
 	@Autowired
 	EventSerializer serializer;
@@ -166,6 +171,35 @@ class LabelingModuleTests {
 				.andVerify(state -> assertThat(state).contains(LabelState.USED_UP));
 	}
 
+	/**
+	 * The item's events: frozen (1), last portion taken out (2), consumed (3), take-out undone (4). The reaction to
+	 * "consumed" failed at first, the undo came through, and then "consumed" was resubmitted.
+	 */
+	@Test
+	void anOlderConsumedThatArrivesAfterTheUndoLeavesTheLabelOnTheItem(Scenario scenario) {
+		var household = HouseholdId.random();
+		var code = LabelCode.generate();
+		var item = FrozenItemId.random();
+		var product = ProductId.random();
+		var undone = new TakeOutUndone(item, household, product, 1, 1, code, 4);
+		var consumed = new ItemConsumed(item, household, product, code, 3);
+
+		scenario.publish(new ItemFrozen(item, household, product, "Peas", 1, TODAY, TODAY.plusMonths(12), code, 1))
+				.andWaitForStateChange(() -> labels.findById(code))
+				.andVerify(label -> assertThat(label).isPresent());
+
+		scenario.publish(undone)
+				.andWaitForStateChange(() -> isHandled(undone), Boolean::booleanValue)
+				.andVerify(handled -> assertThat(stateOf(code)).contains(LabelState.ATTACHED));
+
+		scenario.publish(consumed)
+				.andWaitForStateChange(() -> isHandled(consumed), Boolean::booleanValue)
+				.andVerify(handled -> assertThat(labels.findById(code)).hasValueSatisfying(label -> {
+					assertThat(label.getState()).isEqualTo(LabelState.ATTACHED);
+					assertThat(label.getItemId()).contains(item);
+				}));
+	}
+
 	/** Publications recorded before events carried revisions have none; they are read as unknown (0). */
 	@Test
 	void eventsRecordedBeforeRevisionsExistedAreReadWithAnUnknownRevision() {
@@ -195,11 +229,20 @@ class LabelingModuleTests {
 		return serializer.deserialize(json.toString(), (Class<T>) event.getClass());
 	}
 
+	/** Whether Labeling has handled the event: its publication is complete (and therefore removed). */
+	private boolean isHandled(Object event) {
+		return publications.findIncompletePublications().stream().noneMatch(it -> it.getEvent().equals(event));
+	}
+
+	private Optional<LabelState> stateOf(LabelCode code) {
+		return labels.findById(code).map(Label::getState);
+	}
+
 	/** A persistent label that held the item and is free again. */
 	private void usedOnceFor(HouseholdId household, FrozenItemId item) {
 		var label = Label.persistent(household, Instant.now());
-		label.attach(item);
-		label.release(item);
+		label.attach(item, 1);
+		label.release(item, 3);
 		labels.save(label);
 	}
 

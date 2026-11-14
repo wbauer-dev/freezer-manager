@@ -13,7 +13,8 @@ import org.springframework.scheduling.annotation.Scheduled;
  * Hands events whose reaction failed (e.g. a database hiccup, or a change that kept colliding) to their listeners
  * again, every few minutes — not only after a restart. Only failed publications at least a few minutes old: events
  * still being handled are left alone, and a failing reaction is not retried in a tight loop. Reactions tolerate events
- * they have already handled, so a second delivery is harmless.
+ * they have already handled, so a second delivery is harmless; and where order matters, they ignore an event older than
+ * one they have already applied (e.g. a label and its item's revision), so a late delivery is harmless too.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
