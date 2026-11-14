@@ -1,10 +1,13 @@
 package app.freezer.inventory.application;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import app.freezer.household.HouseholdId;
+import app.freezer.inventory.FrozenItemId;
+import app.freezer.inventory.ItemDescription;
 import app.freezer.inventory.domain.CompartmentId;
 
 /**
@@ -18,5 +21,8 @@ public interface InventoryQueries {
 
 	/** Number of items in the freezer per compartment. Empty compartments are missing. */
 	Map<CompartmentId, Integer> itemCountsByCompartment(HouseholdId householdId);
+
+	/** Descriptions of the given items of the household, in any state. Items of other households are missing. */
+	Map<FrozenItemId, ItemDescription> descriptions(HouseholdId householdId, Collection<FrozenItemId> itemIds);
 
 }
