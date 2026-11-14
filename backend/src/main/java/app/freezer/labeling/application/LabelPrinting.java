@@ -65,9 +65,12 @@ public class LabelPrinting {
 	 */
 	@Transactional(readOnly = true)
 	public List<FreeLabel> freeLabels(HouseholdMember member) {
-		return labels.findFreePersistent(member.householdId()).stream()
+		var free = labels.findFreePersistent(member.householdId());
+		var lastItems = items.describeAll(member.householdId(),
+				free.stream().flatMap(label -> label.getItemId().stream()).toList());
+		return free.stream()
 				.map(label -> new FreeLabel(label.getId(), label.getItemId()
-						.flatMap(item -> items.describe(member.householdId(), item))
+						.map(lastItems::get)
 						.map(ItemDescription::productName)
 						.orElse(null)))
 				.toList();
