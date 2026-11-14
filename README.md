@@ -173,7 +173,8 @@ cd frontend && npm test -- --watch=false
   violations fail the build. Skip them while experimenting with `-Dcheckstyle.skip -Dpmd.skip`.
 
 [GitHub Actions](.github/workflows/ci.yml) runs all of this on every push and pull request,
-and also checks the frontend's formatting and that new texts were extracted for translation.
+and also checks the frontend's formatting and that new texts were extracted for translation. It
+builds both container images and checks nginx's configuration.
 
 ## Call the API with curl
 
