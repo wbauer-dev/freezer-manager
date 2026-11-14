@@ -122,7 +122,9 @@ cd frontend && npm install && npm start   # app on http://localhost:4200
 
 Open http://localhost:4200 and log in as `alice` / `alice` (also: `bob` / `bob`, `carol` /
 `carol`), or register a new user on the login page. Keycloak's admin console is at
-http://localhost:8081 (`admin` / `admin`).
+http://localhost:8081 (`admin` / `admin`). PostgreSQL and Keycloak listen on this computer only,
+and Keycloak keeps its accounts in a volume, so `docker compose down` does not delete them
+(`docker compose down -v` does).
 
 **Or run everything in containers** — no Java or Node needed, only Docker:
 
@@ -137,9 +139,18 @@ Without `--profile app`, Compose starts only PostgreSQL and Keycloak for develop
 To use the app from other devices — for example a phone that scans labels — copy `.env.example` to
 `.env` and set `FREEZER_URL` to this computer's address, e.g. `https://192.168.1.20:8443`. Open the
 app with exactly that address; login, the API and the QR codes on new stickers all use it. HTTPS is
-required because the login uses the browser's Web Crypto API.
+required because the login uses the browser's Web Crypto API. Only the app's port is open to other
+devices: nginx passes on the login pages, not Keycloak's admin console.
 
-> All credentials in this repository are for local development only.
+`.env.example` also starts Keycloak with a realm without the demo users and without the
+`freezer-dev-cli` client (`KEYCLOAK_REALM_DIR=./infra/keycloak/lan`; development uses
+`infra/keycloak/dev`), and lets you choose the passwords of the database and the admin console.
+Keycloak imports the realm only into an empty volume — if it ran with the demo users before,
+remove its data first: `docker compose down && docker volume rm freezer_keycloak-data`. Everyone
+registers on the login page then; brute-force protection locks an account after repeated wrong
+passwords.
+
+> The default credentials in this repository are for local development only.
 
 To scan labels with a phone, the phone must reach the app; set `freezer.labels.scan-url` in
 `backend/src/main/resources/application.yml` to an address it can open.
@@ -165,7 +176,7 @@ and also checks the frontend's formatting and that new texts were extracted for 
 
 ## Call the API with curl
 
-The realm has a development client that hands out tokens for username and password:
+In development, the realm has a client that hands out tokens for username and password:
 
 ```bash
 TOKEN=$(curl -s -d client_id=freezer-dev-cli -d grant_type=password \
@@ -183,7 +194,9 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/households
 2. Backend: add `<module>_<code>.properties` for every bundle in `src/main/resources/i18n/`
    (and to `LANGUAGES` in `MessagesTests`), and a starter catalog
    `src/main/resources/catalog/templates/<code>.json`.
-3. Keycloak: add the language to `supportedLocales` in `infra/keycloak/freezer-realm.json`.
+3. Keycloak: add the language to `supportedLocales` in both realms, `infra/keycloak/dev/` and
+   `infra/keycloak/lan/freezer-realm.json` (CI checks that they differ only in the demo users and
+   the curl client).
 
 The tests report missing translations.
 

@@ -1,4 +1,4 @@
-# Credentials are for development only — do not run this on an untrusted network.
+# Default credentials are for development only. See .env.example before using the app from other devices.
 #
 #   docker compose up -d                          PostgreSQL and Keycloak, for development
 #                                                 (backend and frontend run on the host)
@@ -6,6 +6,8 @@
 #
 # FREEZER_URL is the address the app is opened with (default https://localhost:8443). To use it from
 # other devices, e.g. a phone that scans labels, set it in .env (see .env.example).
+#
+# PostgreSQL and Keycloak listen on this computer only; other devices reach the app through nginx (frontend).
 name: freezer
 
 services:
@@ -14,9 +16,10 @@ services:
     environment:
       POSTGRES_DB: freezer
       POSTGRES_USER: freezer
-      POSTGRES_PASSWORD: freezer
+      # Set when the database is first created; changing it later needs the volume removed.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-freezer}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       # Postgres 18 images keep their data below /var/lib/postgresql/<version>/
       - postgres-data:/var/lib/postgresql
@@ -32,17 +35,20 @@ services:
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Used when the admin account is first created.
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       # Keycloak names the address it was reached with: http://localhost:8081 in development,
       # FREEZER_URL behind nginx (which sends X-Forwarded-* headers).
       KC_PROXY_HEADERS: xforwarded
       # Used in the realm file for the app's login redirect.
       FREEZER_URL: ${FREEZER_URL:-https://localhost:8443}
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
       - keycloak-data:/opt/keycloak/data
-      - ./infra/keycloak:/opt/keycloak/data/import:ro
+      # The realm to import: infra/keycloak/dev has demo users and a password-login client for curl;
+      # infra/keycloak/lan has neither (for use from other devices, see .env.example).
+      - ${KEYCLOAK_REALM_DIR:-./infra/keycloak/dev}:/opt/keycloak/data/import:ro
 
   backend:
     profiles: [app]
@@ -51,7 +57,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/freezer
       SPRING_DATASOURCE_USERNAME: freezer
-      SPRING_DATASOURCE_PASSWORD: freezer
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-freezer}
       # Tokens come from Keycloak behind nginx; the signing keys are fetched inside the network.
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI: ${FREEZER_URL:-https://localhost:8443}/realms/freezer
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/freezer/protocol/openid-connect/certs
