@@ -1,16 +1,23 @@
-/** Representations returned by the backend's Catalog module. Each household has its own catalog. */
+/**
+ * Representations returned by the backend's Catalog module. Each household has its own catalog.
+ *
+ * Categories and products carry the version the member last saw. Every change sends it back; if another member
+ * changed the item in the meantime, the backend rejects the change (409) instead of overwriting theirs.
+ */
 
 export interface FoodCategory {
   id: string;
   name: string;
   emoji: string;
   shelfLifeMonths: number;
+  version: number;
 }
 
 export interface Product {
   id: string;
   name: string;
   categoryId: string;
+  version: number;
 }
 
 export interface CatalogInfo {
