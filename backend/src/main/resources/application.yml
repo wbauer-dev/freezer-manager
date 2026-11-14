@@ -27,7 +27,7 @@ spring:
 
   # Texts for users: one bundle per module, English as default, German in *_de. A new language is a new set of files.
   messages:
-    basename: i18n/common, i18n/household, i18n/catalog, i18n/inventory, i18n/labeling, i18n/media
+    basename: i18n/common, i18n/household, i18n/catalog, i18n/inventory, i18n/labeling, i18n/media, i18n/shopping
     fallback-to-system-locale: false
 
   web:

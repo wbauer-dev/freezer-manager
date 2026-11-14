@@ -1,7 +1,8 @@
 # Freezer Manager — Domain Model
 
 > Status: **phase 1 complete** — Household & Access, Catalog (one per household, editable),
-> Freezer Inventory, Labeling and Media are implemented, in English and German. Phase 2 (Shopping) is next. Decisions are recorded in [§ 8](#8-decisions).
+> Freezer Inventory, Labeling and Media are implemented, in English and German. Phase 2 (Shopping) has started:
+> the shared shopping list is implemented; live updates and staples are next. Decisions are recorded in [§ 8](#8-decisions).
 > How the code is organised is described in [architecture.md](architecture.md).
 
 ## 1. Vision
@@ -107,7 +108,8 @@ Module dependencies form a DAG (no cycles): Inventory must never call Labeling o
 | **Stock** | Portions of a product currently in the household's freezers. |
 | **Staple** | Product with a minimum stock. Falling below it puts the product on the shopping list. |
 | **Shopping list** | The household's shared list of entries to buy. |
-| **Entry** | One thing to buy. Source: *manual*, *low stock* or *recipe*. |
+| **Entry** | One thing to buy. Source: *manual*, *low stock* or *recipe*. *Open* until a member ticks it off. |
+| **Basket** | The entries ticked off while shopping. They leave the list when the shopping is *done*. |
 
 ## 5. Bounded contexts in detail
 
@@ -275,14 +277,27 @@ Each household has its own catalog; every member may change it.
 
 ### 5.5 Shopping (supporting, phase 2)
 
-- **`ShoppingList`** per household; entries: product or free text, quantity note, source
-  (`MANUAL | LOW_STOCK | RECIPE`), added by, checked by/at.
-- **`Staple`**: `ProductId` + minimum portions.
-- Rules:
-  - At most one open entry per product; adding the product again merges the quantity note.
+- **`ShoppingList`** ✅ – one per household, identified by the `HouseholdId`, created when it is first changed.
+  Entries: a catalog product (with a snapshot of its name) or free text, an optional quantity note, the source
+  (`MANUAL` now; `LOW_STOCK`, `RECIPE` later), added by, checked by/at (member names are snapshots).
+- Rules ✅:
+  - At most one *open* entry for the same thing – the same product, or free text with the same name ignoring case.
+    Adding it again merges the quantity notes: "500 g" and "1 kg" become "500 g + 1 kg". An entry in the basket
+    doesn't count, so buying something again gives a new entry.
+  - Unticking an entry when the same thing was added again in the meantime merges the two.
+  - Ticking off, unticking and removing are idempotent; an entry that is gone is ignored (another member may have
+    been quicker).
+  - "Done shopping" removes everything in the basket.
+  - Name and quantity at most 60 characters each, at most 200 entries – the list is loaded and saved as a whole.
+  - Free text never becomes a catalog product: milk doesn't belong in the freezer catalog.
+  - Product names follow the catalog (`ProductRenamed`); a product removed from the catalog keeps its last name.
+- **Concurrent changes:** two members changing the list at the same moment collide on its version. Because the
+  commands are idempotent or merge, the application service simply applies a collided command again to the fresh
+  list (up to three times) – see decision 26.
+- **`Staple`** (next): `ProductId` + minimum portions.
   - `StockLevelChanged` below the minimum and no open entry → add a `LOW_STOCK` entry.
   - Stock back at or above the minimum and the `LOW_STOCK` entry still unchecked → remove it.
-- Changes are pushed live to all members viewing the list (server-sent events).
+- Changes are pushed live to all members viewing the list (server-sent events) (next).
 
 ### 5.6 Notifications (generic, phase 3)
 
@@ -365,13 +380,13 @@ sequenceDiagram
 | Phase | Scope | Result |
 |---|---|---|
 | 1 ✅ | Household & Access, Catalog (minimal), Inventory, Labeling, Media | Usable freezer with labels, scanning, photos, eat-first list |
-| 2 | Shopping | Shared live shopping list, staples |
+| 2 (started) | Shopping | Shared live shopping list ✅, live updates, staples |
 | 3 | Notifications | Expiry reminders |
 | 4 | Recipes | Cook from freezer, recipe import |
 
 ## 8. Decisions
 
-1–11 agreed on 2026-11-13. 12–20 were decided during implementation and are open for review.
+1–11 agreed on 2026-11-13. 12–20 and 26–28 were decided during implementation and are open for review.
 
 | # | Topic | Decision |
 |---|---|---|
@@ -400,3 +415,6 @@ sequenceDiagram
 | 23 | Starting a catalog | Lazily, with the system defaults in the language of the first member who opens it; start over empty or with the defaults in any language (agreed 2026-11-13). Existing data was migrated: households with products kept the former global categories |
 | 24 | Renamed products | Items still in the freezer take the new name (event `ProductRenamed`); eaten and discarded items keep their history |
 | 25 | Languages | English and German, prepared for more (agreed 2026-11-13). The domain reports problems as message codes; the web adapters translate them (Accept-Language). Food names are household data and are not translated |
+| 26 | Concurrent changes to the shopping list | The whole list stays one aggregate (decision 9). A command that collided with another member's change is applied again to the fresh list, up to three times; this is safe because the list's commands are idempotent or merge |
+| 27 | Free text on the shopping list | Allowed, and never added to the catalog – the catalog describes what goes into the freezer |
+| 28 | Product names on the shopping list | A snapshot taken when the entry is added, kept current through `ProductRenamed` (like frozen items, decision 24) |

@@ -23,7 +23,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class MessagesTests {
 
-	static final List<String> BUNDLES = List.of("common", "household", "catalog", "inventory", "labeling", "media");
+	static final List<String> BUNDLES = List.of("common", "household", "catalog", "inventory", "labeling", "media",
+			"shopping");
 	static final List<String> LANGUAGES = List.of("de");
 
 	/** Codes put together at runtime, e.g. {@code what + ".name-blank"}. */
@@ -52,7 +53,8 @@ class MessagesTests {
 		for (var bundle : BUNDLES) {
 			known.addAll(load(bundle).stringPropertyNames());
 		}
-		var literal = Pattern.compile("\"((?:household|catalog|inventory|labeling|media)(?:\\.[a-z-]+){2,})\"");
+		var literal = Pattern
+				.compile("\"((?:household|catalog|inventory|labeling|media|shopping)(?:\\.[a-z-]+){2,})\"");
 		var used = new TreeSet<>(COMPOSED_CODES);
 		try (var sources = Files.walk(Path.of("src/main/java"))) {
 			for (var source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {

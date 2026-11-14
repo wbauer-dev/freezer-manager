@@ -25,7 +25,7 @@ docs/       domain model and architecture
 ### One module per bounded context
 
 Every direct sub-package of `app.freezer` is a Spring Modulith application module and implements
-one bounded context: `household`, `catalog`, `inventory`, `labeling`, `media` (later `shopping`,
+one bounded context: `household`, `catalog`, `inventory`, `labeling`, `media`, `shopping` (later
 `notifications`, `recipes`).
 
 - A module's **base package is its published API**: identifiers, events and query interfaces
@@ -76,6 +76,7 @@ The ring annotations (jMolecules, in `package-info.java`) make the onion archite
 | Domain event | Record implementing jMolecules `DomainEvent`, in the module's base package (published API). The aggregate collects events; Spring Data publishes them on `save()`; Spring Modulith records each publication in the `event_publication` table within the same transaction |
 | Repository | Domain interface (`Households`) extending jMolecules `Repository`. The persistence adapter (`JdbcHouseholds`) extends it together with Spring Data's `Repository`; Spring Data implements CRUD methods, custom queries are declared with `@Query` |
 | Optimistic locking | `@Version` on every aggregate. It also tells Spring Data whether an aggregate is new, because identifiers are assigned by the domain, not the database |
+| Many members, one aggregate | The shopping list is one aggregate that several members change at once. Its commands are idempotent or merge, so `ShoppingListManagement` runs each in its own `TransactionTemplate` and applies a command that collided (optimistic lock, or two first inserts) again to the fresh list |
 | Time | Use cases take the current time from the injected `Clock`; domain methods receive it as a parameter (`takeOut(..., now)`), so aggregates stay deterministic in tests |
 | Rules spanning several aggregates | Checked in the application service and named as such, e.g. unique freezer names, "only empty compartments can be removed". Backed by unique indexes where races matter |
 | Read models | CQRS light: the application layer defines a query interface (`InventoryQueries`) returning read-only records; the persistence adapter implements it with plain SQL (`JdbcClient`). Domain rules are reused for derived values, e.g. the expiry status |
@@ -143,8 +144,8 @@ with Bean Validation for early, friendly error messages.
 
 - Angular 22: standalone components, zoneless change detection, signals. Queries use
   `httpResource`, forms use signal forms.
-- **Feature folders follow the bounded contexts**: `household`, `catalog`, `inventory`, later
-  `labeling`, ... Each folder holds its API service, models and pages.
+- **Feature folders follow the bounded contexts**: `household`, `catalog`, `inventory`, `labeling`,
+  `media`, `shopping`. Each folder holds its API service, models and pages.
 - When a user action concerns two contexts, the UI coordinates the commands. Example: freezing a
   food the catalog doesn't know yet first adds the product (Catalog), then freezes the item
   (Inventory). Neither backend module calls the other's commands.
