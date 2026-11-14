@@ -134,6 +134,8 @@ export class CatalogPage {
 
   /** Commands in flight. The same command again — a second Enter, a double click — is ignored meanwhile. */
   private readonly inFlight = new Set<string>();
+  /** The last change to each food, so the next one waits for it (see run). */
+  private readonly queues = new Map<string, Promise<void>>();
 
   protected startNewCategory(): void {
     this.draft.set({ ...NEW_CATEGORY });
@@ -224,7 +226,7 @@ export class CatalogPage {
     this.draft.set(null);
     this.run(
       `remove-category:${category.id}`,
-      this.api.removeCategory(this.householdId(), category),
+      () => this.api.removeCategory(this.householdId(), category),
       () =>
         this.snackBar.open(
           $localize`:@@catalog.category.removed:${category.name}:name: removed`,
@@ -241,7 +243,7 @@ export class CatalogPage {
     if (name) {
       this.run(
         `new-food:${normalize(name)}`,
-        this.api.defineProduct(this.householdId(), name, category.id),
+        () => this.api.defineProduct(this.householdId(), name, category.id),
         () => {
           // Keep what was typed in the meantime.
           if (input.value.trim() === name) {
@@ -265,8 +267,9 @@ export class CatalogPage {
     if (name && name !== product.name) {
       this.run(
         `rename:${product.id}`,
-        this.api.editProduct(this.householdId(), { ...product, name }),
+        () => this.api.editProduct(this.householdId(), { ...this.current(product), name }),
         (renamed) => this.products.update((products) => withItem(products, renamed)),
+        product.id,
       );
     }
   }
@@ -274,7 +277,11 @@ export class CatalogPage {
   protected moveTo(product: Product, category: FoodCategory): void {
     this.run(
       `move:${product.id}`,
-      this.api.editProduct(this.householdId(), { ...product, categoryId: category.id }),
+      () =>
+        this.api.editProduct(this.householdId(), {
+          ...this.current(product),
+          categoryId: category.id,
+        }),
       (moved) => {
         this.products.update((products) => withItem(products, moved));
         this.snackBar.open(
@@ -283,18 +290,23 @@ export class CatalogPage {
           { duration: 3000 },
         );
       },
+      product.id,
     );
   }
 
   protected removeProduct(product: Product): void {
-    this.run(`remove-food:${product.id}`, this.api.removeProduct(this.householdId(), product), () =>
-      this.snackBar.open(
-        $localize`:@@catalog.product.removed:${product.name}:name: removed`,
-        undefined,
-        {
-          duration: 3000,
-        },
-      ),
+    this.run(
+      `remove-food:${product.id}`,
+      () => this.api.removeProduct(this.householdId(), this.current(product)),
+      () =>
+        this.snackBar.open(
+          $localize`:@@catalog.product.removed:${product.name}:name: removed`,
+          undefined,
+          {
+            duration: 3000,
+          },
+        ),
+      product.id,
     );
   }
 
@@ -303,7 +315,8 @@ export class CatalogPage {
     const mode = this.resetMode();
     this.run(
       'reset',
-      this.api.reset(this.householdId(), mode, mode === 'DEFAULTS' ? this.resetLanguage() : null),
+      () =>
+        this.api.reset(this.householdId(), mode, mode === 'DEFAULTS' ? this.resetLanguage() : null),
       () => {
         this.info.reload();
         this.snackBar.open(
@@ -337,25 +350,61 @@ export class CatalogPage {
   /**
    * Runs a command unless the same one (by key) is still in flight, then shows the catalog as it is now. A command
    * that failed — e.g. because another member changed the food in the meantime — is explained in a snackbar.
+   *
+   * Changes to the same food (`queue`) run one after the other: each is created only when the one before has
+   * finished, so it sends the version that one returned. Otherwise a quick rename and move would both send the same
+   * version, and the second would be rejected as if another member had changed the food.
    */
-  private run<T>(key: string, command: Observable<T>, onSuccess?: (result: T) => void): void {
+  private run<T>(
+    key: string,
+    command: () => Observable<T>,
+    onSuccess?: (result: T) => void,
+    queue?: string,
+  ): void {
     if (this.inFlight.has(key)) {
       return;
     }
     this.inFlight.add(key);
-    command.pipe(finalize(() => this.inFlight.delete(key))).subscribe({
-      next: (result) => {
-        // Right away, so that a next change sends the new version even before the catalog is loaded again.
-        onSuccess?.(result);
-        this.categories.reload();
-        this.products.reload();
-      },
-      error: (error) => {
-        this.categories.reload();
-        this.products.reload();
-        this.showProblem(error);
-      },
-    });
+    // Sent right away unless a change to the same food is still pending.
+    const start = () =>
+      new Promise<void>((finished) =>
+        command()
+          .pipe(
+            finalize(() => {
+              this.inFlight.delete(key);
+              finished();
+            }),
+          )
+          .subscribe({
+            next: (result) => {
+              // Right away, so that a next change sends the new version even before the catalog is loaded again.
+              onSuccess?.(result);
+              this.categories.reload();
+              this.products.reload();
+            },
+            error: (error) => {
+              this.categories.reload();
+              this.products.reload();
+              this.showProblem(error);
+            },
+          }),
+      );
+    const previous = queue ? this.queues.get(queue) : undefined;
+    const done = previous ? previous.then(start) : start();
+    if (queue) {
+      this.queues.set(queue, done);
+      void done.then(() => {
+        if (this.queues.get(queue) === done) {
+          this.queues.delete(queue);
+        }
+      });
+    }
+  }
+
+  /** The food as the page knows it now — with the version of the last change. */
+  private current(product: Product): Product {
+    const products = this.products.hasValue() ? this.products.value() : [];
+    return products.find((known) => known.id === product.id) ?? product;
   }
 
   private showProblem(error: unknown): void {

@@ -169,6 +169,37 @@ describe('CatalogPage', () => {
     expect(text()).toContain('Sweet peas');
   });
 
+  it('sends a quick second change to a food only after the first, with the version it returned', async () => {
+    await open();
+    const field = await startRenaming('Peas');
+    field.value = 'Garden peas';
+    press(field, 'Enter');
+    const tick = async () => TestBed.tick();
+    await tick();
+    const rename = http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' });
+
+    // Removed while the rename is still being saved: it waits instead of sending the version both started from.
+    await choose('Peas', 'Remove', tick);
+    http.expectNone((each) => each.method === 'DELETE');
+
+    rename.flush({ ...PEAS, name: 'Garden peas', version: 4 });
+    await new Promise((resolve) => setTimeout(resolve));
+    await tick();
+    const remove = http.expectOne(
+      (each) => each.method === 'DELETE' && each.url === '/api/households/h1/products/p1',
+    );
+    expect(remove.request.params.get('version')).toBe('4');
+    remove.flush(null, { status: 204, statusText: 'No Content' });
+    for (const load of http.match(
+      (each) => each.url.startsWith('/api/households/h1/') && each.method === 'GET',
+    )) {
+      if (!load.cancelled) {
+        load.flush(load.request.url.endsWith('products') ? [] : [VEGETABLES]);
+      }
+    }
+    await fixture.whenStable();
+  });
+
   it('removes a food in the version it shows', async () => {
     await open();
 
