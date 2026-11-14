@@ -409,7 +409,7 @@ sequenceDiagram
 
 ## 8. Decisions
 
-1–11 agreed on 2026-11-13. 12–20 and 26–28 were decided during implementation and are open for review.
+1–11 agreed on 2026-11-13. 12–20 and 26–30 were decided during implementation and are open for review.
 
 | # | Topic | Decision |
 |---|---|---|
