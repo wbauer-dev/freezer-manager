@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Observable } from 'rxjs';
+import { Observable, finalize } from 'rxjs';
 
 import { emojiByProduct } from '../catalog/catalog-lookup';
 import { FoodCategory, Product } from '../catalog/catalog.model';
@@ -112,16 +112,25 @@ export class ShoppingPage {
     if (!name || this.adding()) {
       return;
     }
+    const typed = { food: this.food(), quantity: this.quantity() };
     const product = this.matchingProduct();
-    const quantity = this.quantity().trim() || undefined;
+    const quantity = typed.quantity.trim() || undefined;
     const request: AddEntryRequest = product
       ? { productId: product.id, quantity }
       : { name, quantity };
     this.adding.set(true);
-    this.run(this.api.add(this.householdId(), request), () => {
-      this.food.set('');
-      this.quantity.set('');
-    });
+    this.run(
+      this.api.add(this.householdId(), request).pipe(finalize(() => this.adding.set(false))),
+      () => {
+        // Clear what was added, but keep what was typed in the meantime.
+        if (this.food() === typed.food) {
+          this.food.set('');
+        }
+        if (this.quantity() === typed.quantity) {
+          this.quantity.set('');
+        }
+      },
+    );
   }
 
   /** Ticks an entry off or puts it back; the list changes right away, the server's answer follows. */
@@ -169,12 +178,10 @@ export class ShoppingPage {
     this.overlapped ||= this.pending > 1;
     command.subscribe({
       next: (list) => {
-        this.adding.set(false);
         onSuccess?.();
         this.settle(list);
       },
       error: (error) => {
-        this.adding.set(false);
         this.settle(null);
         this.snackBar.open(
           problemMessage(
