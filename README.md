@@ -31,7 +31,8 @@ discard what got freezer burn — and never again find a mystery box from two wi
 
 - **Households** with several members; each user can belong to several households. Owners invite
   people with a link that works once and expires after 7 days, remove members or hand the household
-  over to another owner; anyone can leave.
+  over to another owner; anyone can leave. With only one household, the app opens it right after
+  logging in.
 - **Freezers and drawers** — set up your freezers, reorder drawers by drag and drop, open a drawer
   to see what is in it.
 - **Freeze** food with portions, optional weight and note; the best-before date follows from the
@@ -46,7 +47,8 @@ discard what got freezer burn — and never again find a mystery box from two wi
 - **Photos** of the food — turned upright and scaled down in the browser, re-encoded without
   metadata on the server.
 - **A catalog per household:** food categories with emoji and shelf life, and the household's
-  products. Every member can change it, or start over — empty or with the system defaults.
+  products. Every member can change it, or start over — empty or with the system defaults. If two
+  members edit the same food at once, the second is told and sees the current catalog.
 - **A shared shopping list:** add foods from the catalog or anything else, tick them off in the
   shop, clear the basket afterwards. Adding the same thing twice adds up the quantities.
 - **English and German**, prepared for more languages: user interface, error messages, printed
@@ -97,6 +99,8 @@ Where to look:
 | Access rules as types | [`HouseholdMember`](backend/src/main/java/app/freezer/household/HouseholdMember.java) | Only the Household module can create one, after checking membership. Use cases take it as a parameter, so the compiler enforces the tenant check. |
 | One aggregate, many members | [`ShoppingList`](backend/src/main/java/app/freezer/shopping/domain/ShoppingList.java), [`ShoppingListManagement`](backend/src/main/java/app/freezer/shopping/application/ShoppingListManagement.java) | The household's whole list is one aggregate. Its commands are idempotent or merge ("500 g" + "1 kg"), so a change that collided with another member's is simply applied again to the fresh list. |
 | Rules across aggregates | [`CatalogAdministration`](backend/src/main/java/app/freezer/catalog/application/CatalogAdministration.java) | Unique names and "only empty categories can be removed" live in the application service, backed by database constraints. |
+| Optimistic locking up to the browser | [`ExpectedVersion`](backend/src/main/java/app/freezer/catalog/application/ExpectedVersion.java), [`CatalogAdministration`](backend/src/main/java/app/freezer/catalog/application/CatalogAdministration.java) | Every catalog change sends back the version the member saw. If someone else changed it meanwhile, the change is rejected (409), not silently overwritten — unlike the shopping list, a rename is a decision about what the member saw. |
+| Events that arrive late or twice | [`FrozenItem`](backend/src/main/java/app/freezer/inventory/domain/FrozenItem.java), [`Label`](backend/src/main/java/app/freezer/labeling/domain/Label.java), [`FailedEventResubmission`](backend/src/main/java/app/freezer/FailedEventResubmission.java) | The aggregate stamps a revision on each event it raises; Labeling ignores an event older than one it has applied. So failed reactions can simply be retried every few minutes, out of order. |
 | Ports and adapters | [`PhotoStorage`](backend/src/main/java/app/freezer/media/application/PhotoStorage.java) | Photos are stored in PostgreSQL behind a port; S3 would be another adapter. |
 | A domain without texts | [`Translatable`](backend/src/main/java/app/freezer/sharedkernel/Translatable.java) | The domain reports problems as message codes; the web adapters translate them into the user's language. |
 
@@ -110,7 +114,7 @@ behind them — is in [docs/domain-model.md](docs/domain-model.md).
 | **Backend** | Java 25, Spring Boot 4.1, [Spring Modulith](https://spring.io/projects/spring-modulith), [jMolecules](https://github.com/xmolecules/jmolecules) (DDD and architecture annotations), Spring Data JDBC, Flyway, PDFBox and ZXing for the label sheets |
 | **Frontend** | Angular 22 (standalone components, signals, zoneless, signal forms), Angular Material 3, `@angular/localize` |
 | **Infrastructure** | PostgreSQL 18, Keycloak 26 (OpenID Connect), Docker Compose |
-| **Tests** | JUnit 5, Testcontainers, ArchUnit, Spring Modulith test support, Vitest |
+| **Tests** | JUnit 6, Testcontainers, ArchUnit, Spring Modulith test support, Vitest |
 
 ## Getting started
 
