@@ -284,7 +284,8 @@ Each household has its own catalog; every member may change it.
   - At most one *open* entry for the same thing – the same product, or free text with the same name ignoring case.
     Adding it again merges the quantity notes: "500 g" and "1 kg" become "500 g + 1 kg". An entry in the basket
     doesn't count, so buying something again gives a new entry.
-  - Unticking an entry when the same thing was added again in the meantime merges the two.
+  - Unticking an entry when the same thing was added again in the meantime merges the two – unless the quantity
+    notes together would be too long; then both stay on the list, so unticking never fails.
   - Ticking off, unticking and removing are idempotent; an entry that is gone is ignored (another member may have
     been quicker).
   - "Done shopping" removes everything in the basket.
