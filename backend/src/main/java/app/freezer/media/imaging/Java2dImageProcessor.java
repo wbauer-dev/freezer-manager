@@ -20,8 +20,8 @@ import app.freezer.media.application.InvalidImageException;
 import app.freezer.media.domain.PhotoVariant;
 
 /**
- * Decodes the upload, scales it to each variant and writes plain JPEGs. Re-encoding drops all metadata, including
- * the location phone cameras embed.
+ * Decodes the upload, turns it the right way up, scales it to each variant and writes plain JPEGs. Re-encoding drops
+ * all metadata, including the location phone cameras embed — and the orientation, which is why it is applied first.
  */
 @Component
 class Java2dImageProcessor implements ImageProcessor {
@@ -46,7 +46,8 @@ class Java2dImageProcessor implements ImageProcessor {
 	public ProcessedPhoto process(byte[] upload) {
 		var image = read(upload);
 		var variants = new EnumMap<PhotoVariant, byte[]>(PhotoVariant.class);
-		var large = scaleDown(image, PhotoVariant.LARGE.maxSize());
+		// Turning the scaled-down image is cheaper and gives the same result: scaling depends on the longer side only.
+		var large = Orientation.of(upload).turnUpright(scaleDown(image, PhotoVariant.LARGE.maxSize()));
 		variants.put(PhotoVariant.LARGE, jpeg(large));
 		variants.put(PhotoVariant.THUMBNAIL, jpeg(scaleDown(large, PhotoVariant.THUMBNAIL.maxSize())));
 		return new ProcessedPhoto(large.getWidth(), large.getHeight(), variants);
