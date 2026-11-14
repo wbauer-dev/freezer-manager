@@ -154,6 +154,8 @@ with Bean Validation for early, friendly error messages.
   frosted-glass surfaces; light and dark mode follow the system). Palette seeds are in
   `src/styles/_theme-colors.scss`, design tokens in `src/styles.scss`. Status colours carry meaning: muted teal
   for fresh, ochre for "eat soon", brick red for expired.
+- Food emojis are toned down by one token, `--food-emoji-filter` in `src/styles.scss`. Anything that shows a
+  food's emoji puts it in an element with the `food-emoji` class (or adds the token to its own `filter`).
 - CSS `light-dark()` only accepts colours. Shadows and gradients that differ between light and dark mode are
   switched in the `prefers-color-scheme: dark` block of `src/styles.scss`.
 - Photos need the access token, which an `<img src>` cannot send. `PhotoLoader` loads them through

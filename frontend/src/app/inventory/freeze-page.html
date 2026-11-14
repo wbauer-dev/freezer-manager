@@ -39,7 +39,7 @@
         <mat-autocomplete #productOptions>
           @for (product of suggestions(); track product.id) {
             <mat-option [value]="product.name">
-              <span class="option-emoji">{{ emojiOf(product) }}</span>
+              <span class="option-emoji food-emoji">{{ emojiOf(product) }}</span>
               {{ product.name }}
             </mat-option>
           }
@@ -128,7 +128,7 @@
         <div class="quick-picks">
           @for (product of quickPicks(); track product.id) {
             <button type="button" class="quick-pick" (click)="pick(product)" matRipple>
-              <span>{{ emojiOf(product) }}</span>
+              <span class="food-emoji">{{ emojiOf(product) }}</span>
               {{ product.name }}
             </button>
           }
@@ -160,7 +160,7 @@
                 (click)="chooseCategory(category.id)"
                 matRipple
               >
-                <span class="category-emoji">{{ category.emoji }}</span>
+                <span class="category-emoji food-emoji">{{ category.emoji }}</span>
                 <span class="category-name">{{ category.name }}</span>
                 <span
                   class="category-months"

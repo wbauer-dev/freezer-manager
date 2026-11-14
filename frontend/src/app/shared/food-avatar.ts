@@ -92,7 +92,7 @@ import { UNKNOWN_FOOD, foodHue } from './food';
     }
     .emoji {
       line-height: 1;
-      filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.18));
+      filter: var(--food-emoji-filter) drop-shadow(0 2px 3px rgb(0 0 0 / 0.18));
     }
   `,
 })
