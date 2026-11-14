@@ -75,6 +75,14 @@
             alt="Photo of the food"
             i18n-alt="@@freeze.photo.alt"
           />
+        }
+        <!-- One upload at a time: while a photo uploads, it can't be changed or removed. -->
+        @if (uploadingPhoto()) {
+          <button mat-stroked-button type="button" disabled>
+            <mat-icon>hourglass_top</mat-icon>
+            <span i18n="@@freeze.photo.uploading">Uploading…</span>
+          </button>
+        } @else if (photo()) {
           <button mat-button type="button" class="touch-only" (click)="cameraInput.click()">
             <mat-icon>photo_camera</mat-icon>
             <span i18n="@@freeze.photo.retake">Retake</span>
@@ -86,11 +94,6 @@
           <button mat-button type="button" (click)="removePhoto()">
             <mat-icon>close</mat-icon>
             <span i18n="@@common.remove">Remove</span>
-          </button>
-        } @else if (uploadingPhoto()) {
-          <button mat-stroked-button type="button" disabled>
-            <mat-icon>hourglass_top</mat-icon>
-            <span i18n="@@freeze.photo.uploading">Uploading…</span>
           </button>
         } @else {
           <button
@@ -468,7 +471,7 @@
           mat-flat-button
           class="cta freeze-button"
           type="submit"
-          [disabled]="freezeForm().submitting()"
+          [disabled]="freezeForm().submitting() || uploadingPhoto()"
         >
           <mat-icon>ac_unit</mat-icon>
           <span i18n="@@household.freeze">Freeze</span>

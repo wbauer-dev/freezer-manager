@@ -1,20 +1,38 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { today } from '../shared/dates';
 import { FreezePage } from './freeze-page';
 
+const { createObjectURL, revokeObjectURL } = URL;
+
 describe('FreezePage', () => {
   let http: HttpTestingController;
   let fixture: ComponentFixture<FreezePage>;
+  let revoked: string[];
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     http = TestBed.inject(HttpTestingController);
+
+    // The test browser has no object URLs, which show a photo before it is saved.
+    let created = 0;
+    revoked = [];
+    URL.createObjectURL = () => `blob:${++created}`;
+    URL.revokeObjectURL = (url) => revoked.push(url);
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
   });
 
   async function open(freePersistentLabels = 0): Promise<void> {
@@ -88,6 +106,39 @@ describe('FreezePage', () => {
     return new Promise((resolve) => setTimeout(resolve));
   }
 
+  /** Picks a photo from the gallery; it is uploaded right away. */
+  async function pickPhoto(): Promise<void> {
+    const input = element<HTMLInputElement>('input[type="file"]:not([capture])');
+    Object.defineProperty(input, 'files', {
+      value: [new File(['jpeg'], 'peas.jpg', { type: 'image/jpeg' })],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event('change'));
+    await settle();
+    await fixture.whenStable();
+  }
+
+  async function choosePhoto(): Promise<TestRequest> {
+    await pickPhoto();
+    return http.expectOne({ method: 'POST', url: '/api/households/h1/photos' });
+  }
+
+  async function uploaded(upload: TestRequest, id: string): Promise<void> {
+    upload.flush({ id, width: 800, height: 600 });
+    await settle();
+    await fixture.whenStable();
+  }
+
+  function photoButtons(): string[] {
+    return Array.from<HTMLElement>(
+      fixture.nativeElement.querySelectorAll('.photo-row button .mdc-button__label'),
+    ).map((label) => (label.textContent ?? '').trim());
+  }
+
+  function preview(): string | null {
+    return element<HTMLImageElement>('.photo-preview')?.getAttribute('src') ?? null;
+  }
+
   it('freezes an existing product, ignoring case', async () => {
     await open();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -139,6 +190,50 @@ describe('FreezePage', () => {
     http
       .match({ method: 'GET', url: '/api/households/h1/products' })
       .forEach((reload) => reload.flush([]));
+  });
+
+  it('waits for the photo to be uploaded before freezing', async () => {
+    await open();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    await enter('#product', 'peas');
+    const upload = await choosePhoto();
+
+    expect(element<HTMLButtonElement>('.freeze-button').disabled).toBe(true);
+    await submitForm();
+    http.expectNone({ method: 'POST', url: '/api/households/h1/items' });
+
+    await uploaded(upload, 'photo-1');
+    expect(element<HTMLButtonElement>('.freeze-button').disabled).toBe(false);
+    await submitForm();
+    const freeze = http.expectOne({ method: 'POST', url: '/api/households/h1/items' });
+    expect(freeze.request.body).toMatchObject({ photoId: 'photo-1' });
+    freeze.flush({ id: 'i1' });
+    await settle();
+  });
+
+  it('changes a photo one upload at a time and releases the previews it no longer shows', async () => {
+    await open();
+    await uploaded(await choosePhoto(), 'photo-1');
+    expect(preview()).toBe('blob:1');
+    expect(photoButtons()).toEqual(['Retake', 'Change', 'Remove']);
+
+    const change = await choosePhoto();
+    expect(photoButtons()).toEqual(['Uploading…']);
+    await uploaded(change, 'photo-2');
+    expect(preview()).toBe('blob:3');
+    expect(revoked).toEqual(['blob:1', 'blob:2']);
+
+    // A photo chosen while another one uploads wins, whichever upload finishes first.
+    await pickPhoto();
+    await pickPhoto();
+    const [slow, fast] = http.match({ method: 'POST', url: '/api/households/h1/photos' });
+    await uploaded(fast, 'photo-4');
+    await uploaded(slow, 'photo-3');
+    expect(preview()).toBe('blob:5');
+
+    await click('.photo-row button:last-of-type');
+    expect(preview()).toBeNull();
+    expect(revoked).toEqual(['blob:1', 'blob:2', 'blob:3', 'blob:4', 'blob:5', 'blob:6']);
   });
 
   it('asks for a category when the product is new', async () => {

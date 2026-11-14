@@ -137,6 +137,8 @@ export class FreezePage {
   protected readonly photo = signal<{ id: string; preview: string } | null>(null);
   protected readonly uploadingPhoto = signal(false);
   protected readonly photoError = signal<string | null>(null);
+  /** Counts the photos chosen and removed, so that an upload that was overtaken can't bring its photo back. */
+  private photoChanges = 0;
 
   private readonly productList = computed(() =>
     this.products.hasValue() ? this.products.value() : [],
@@ -280,26 +282,48 @@ export class FreezePage {
     if (!file) {
       return;
     }
+    const change = ++this.photoChanges;
+    const current = () => change === this.photoChanges;
     this.uploadingPhoto.set(true);
     this.photoError.set(null);
     try {
       const prepared = await preparePhoto(file);
       const uploaded = await firstValueFrom(this.mediaApi.upload(this.householdId(), prepared));
-      this.photo.set({ id: uploaded.id, preview: this.photos.remember(uploaded.id, prepared) });
+      if (current()) {
+        this.replacePhoto({
+          id: uploaded.id,
+          preview: this.photos.remember(uploaded.id, prepared),
+        });
+      }
     } catch (error) {
-      this.photoError.set(
-        problemMessage(
-          error,
-          $localize`:@@freeze.photo.uploadError:The photo could not be uploaded.`,
-        ),
-      );
+      if (current()) {
+        this.photoError.set(
+          problemMessage(
+            error,
+            $localize`:@@freeze.photo.uploadError:The photo could not be uploaded.`,
+          ),
+        );
+      }
     } finally {
-      this.uploadingPhoto.set(false);
+      if (current()) {
+        this.uploadingPhoto.set(false);
+      }
     }
   }
 
   protected removePhoto(): void {
-    this.photo.set(null);
+    this.photoChanges++;
+    this.uploadingPhoto.set(false);
+    this.replacePhoto(null);
+  }
+
+  /** The preview of a photo that is replaced or removed is not needed any more. */
+  private replacePhoto(photo: { id: string; preview: string } | null): void {
+    const previous = this.photo();
+    if (previous) {
+      this.photos.forget(previous.id);
+    }
+    this.photo.set(photo);
   }
 
   protected chooseLabelMode(labelMode: 'new' | 'existing'): void {
@@ -316,6 +340,10 @@ export class FreezePage {
 
   protected async freeze(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.uploadingPhoto()) {
+      // The Freeze button waits for the photo; this also holds for Enter in a field.
+      return;
+    }
     await submit(this.freezeForm, async (fields) => {
       const value = fields().value();
       const location = this.locations().find((l) => l.compartmentId === value.compartmentId)!;
