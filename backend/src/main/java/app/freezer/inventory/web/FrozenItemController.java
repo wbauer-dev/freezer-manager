@@ -145,13 +145,15 @@ class FrozenItemController {
 
 	record EatFirstView(UUID itemId, UUID productId, UUID photoId, String productName, String note,
 			int remainingPortions, Integer gramsPerPortion, LocalDate frozenOn, LocalDate bestBefore,
-			ExpiryStatus expiryStatus, String freezerName, String compartmentName) {
+			ExpiryStatus expiryStatus, UUID freezerId, String freezerName, UUID compartmentId,
+			String compartmentName) {
 
 		static EatFirstView of(EatFirstEntry entry) {
 			return new EatFirstView(entry.itemId().id(), entry.productId().id(),
 					entry.photoId() == null ? null : entry.photoId().id(), entry.productName(), entry.note(),
 					entry.remainingPortions(), entry.gramsPerPortion(), entry.frozenOn(), entry.bestBefore(),
-					entry.expiryStatus(), entry.freezerName(), entry.compartmentName());
+					entry.expiryStatus(), entry.freezerId().id(), entry.freezerName(), entry.compartmentId().id(),
+					entry.compartmentName());
 		}
 	}
 

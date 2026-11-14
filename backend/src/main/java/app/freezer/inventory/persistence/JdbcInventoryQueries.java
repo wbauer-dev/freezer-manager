@@ -17,6 +17,7 @@ import app.freezer.inventory.application.EatFirstEntry;
 import app.freezer.inventory.application.InventoryQueries;
 import app.freezer.inventory.domain.BestBefore;
 import app.freezer.inventory.domain.CompartmentId;
+import app.freezer.inventory.domain.FreezerId;
 import app.freezer.media.PhotoId;
 
 @Component
@@ -33,7 +34,7 @@ class JdbcInventoryQueries implements InventoryQueries {
 		return jdbc.sql("""
 				select i.id, i.product_id, i.photo_id, i.product_name, i.note, i.portions_remaining,
 				       i.grams_per_portion, i.frozen_on, i.best_before_date, i.best_before_overridden,
-				       f.name as freezer_name, c.name as compartment_name
+				       i.freezer_id, f.name as freezer_name, i.compartment_id, c.name as compartment_name
 				from inventory.frozen_item i
 				join inventory.freezer f on f.id = i.freezer_id
 				left join inventory.compartment c on c.id = i.compartment_id
@@ -51,7 +52,9 @@ class JdbcInventoryQueries implements InventoryQueries {
 							row.getString("product_name"), row.getString("note"), row.getInt("portions_remaining"),
 							row.getObject("grams_per_portion", Integer.class),
 							row.getObject("frozen_on", LocalDate.class), bestBefore.date(), bestBefore.statusOn(today),
-							row.getString("freezer_name"), row.getString("compartment_name"));
+							FreezerId.of(row.getObject("freezer_id", UUID.class)), row.getString("freezer_name"),
+							CompartmentId.of(row.getObject("compartment_id", UUID.class)),
+							row.getString("compartment_name"));
 				})
 				.list();
 	}

@@ -30,7 +30,8 @@ discard what got freezer burn — and never again find a mystery box from two wi
 ## Features
 
 - **Households** with several members; each user can belong to several households.
-- **Freezers and drawers** — set up your freezers, reorder drawers by drag and drop.
+- **Freezers and drawers** — set up your freezers, reorder drawers by drag and drop, open a drawer
+  to see what is in it.
 - **Freeze** food with portions, optional weight and note; the best-before date follows from the
   category's shelf life unless you set it yourself.
 - **Eat first:** everything in the freezers by urgency, with a freshness ring around each food.

@@ -73,14 +73,27 @@
                   i18n-matTooltip="@@freezers.dragToReorder"
                   >drag_indicator</mat-icon
                 >
-                <span class="drawer-name">{{ compartment.name }}</span>
-                <span class="drawer-count">
-                  <ng-container i18n="@@freezers.drawerItems">{compartment.itemCount, plural,
-                    =0 {empty}
-                    =1 {1 item}
-                    other {{{ compartment.itemCount }} items}
-                  }</ng-container>
-                </span>
+                <button
+                  type="button"
+                  class="drawer-toggle"
+                  [disabled]="compartment.itemCount === 0"
+                  [attr.aria-expanded]="compartment.itemCount > 0 ? isOpen(compartment) : null"
+                  (click)="toggle(compartment)"
+                >
+                  <span class="drawer-name">{{ compartment.name }}</span>
+                  <span class="drawer-count">
+                    <ng-container i18n="@@freezers.drawerItems">{compartment.itemCount, plural,
+                      =0 {empty}
+                      =1 {1 item}
+                      other {{{ compartment.itemCount }} items}
+                    }</ng-container>
+                  </span>
+                  @if (compartment.itemCount > 0) {
+                    <mat-icon class="chevron" aria-hidden="true">{{
+                      isOpen(compartment) ? 'expand_less' : 'expand_more'
+                    }}</mat-icon>
+                  }
+                </button>
                 <button
                   mat-icon-button
                   class="remove"
@@ -91,6 +104,29 @@
                 >
                   <mat-icon>delete</mat-icon>
                 </button>
+                @if (isOpen(compartment)) {
+                  <ul class="drawer-items">
+                    @for (entry of contentsOf(compartment); track entry.itemId) {
+                      <li>
+                        <a
+                          class="drawer-item"
+                          [class]="statusClass(entry)"
+                          [routerLink]="['../items', entry.itemId]"
+                        >
+                          <span class="item-emoji food-emoji" aria-hidden="true">{{
+                            emojiOf(entry)
+                          }}</span>
+                          <span class="item-name">{{ entry.productName }}</span>
+                          <span class="item-portions">
+                            <mat-icon aria-hidden="true">pie_chart</mat-icon>
+                            {{ entry.remainingPortions }}
+                          </span>
+                          <span class="item-when">{{ timeLeft(entry) }}</span>
+                        </a>
+                      </li>
+                    }
+                  </ul>
+                }
               </div>
             }
           </div>
