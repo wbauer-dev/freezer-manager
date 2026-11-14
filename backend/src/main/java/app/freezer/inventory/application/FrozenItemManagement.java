@@ -51,7 +51,8 @@ public class FrozenItemManagement {
 	public FrozenItemId freeze(HouseholdMember member, FreezeCommand command) {
 		var product = catalog.findProduct(member.householdId(), command.productId())
 				.orElseThrow(() -> new IllegalArgumentException("inventory.product.unknown"));
-		var location = freezers.findById(command.freezerId())
+		// Locked, so the compartment cannot be removed while the item goes in (see Freezers.findAndLock).
+		var location = freezers.findAndLock(command.freezerId())
 				.filter(freezer -> freezer.belongsTo(member.householdId()))
 				.orElseThrow(() -> new IllegalArgumentException("inventory.freezer.unknown"))
 				.locationOf(command.compartmentId());
@@ -90,7 +91,9 @@ public class FrozenItemManagement {
 
 	public void undoTakeOut(HouseholdMember member, FrozenItemId itemId) {
 		var item = itemOf(member, itemId);
-		item.undoTakeOut(member.userId(), now(), freezerOf(item), labelOnAnotherItem(item));
+		// Locked like when freezing: the undo may bring the item back into its compartment.
+		var freezer = freezers.findAndLock(item.getLocation().freezerId()).orElseThrow();
+		item.undoTakeOut(member.userId(), now(), freezer, labelOnAnotherItem(item));
 		items.save(item);
 	}
 
