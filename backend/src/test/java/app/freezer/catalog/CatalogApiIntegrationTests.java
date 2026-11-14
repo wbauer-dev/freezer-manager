@@ -48,7 +48,7 @@ class CatalogApiIntegrationTests {
 		assertThat(mvc.get().uri(api("/food-categories")).with(alice).header("Accept-Language", "de-AT,de;q=0.9"))
 				.hasStatusOk().bodyJson().extractingPath("$[0]").isEqualTo(java.util.Map.of("id",
 						json(mvc.get().uri(api("/food-categories")).with(alice).exchange(), "$[0].id"), "name",
-						"Rind & Lamm", "emoji", "🥩", "shelfLifeMonths", 10));
+						"Rind & Lamm", "emoji", "🥩", "shelfLifeMonths", 10, "version", 0));
 
 		// Started once; other languages see the household's catalog as it is.
 		assertThat(mvc.get().uri(api("/products")).with(alice).header("Accept-Language", "en")).bodyJson()
@@ -79,6 +79,7 @@ class CatalogApiIntegrationTests {
 				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 9 }
 				""");
 		var gameId = json(game, "$.id");
+		int gameVersion = JsonPath.read(content(game), "$.version");
 		assertThat(mvc.get().uri(api("/food-categories")).with(alice)).bodyJson()
 				.extractingPath("$[-1:].name").asArray().containsExactly("Game");
 
@@ -87,20 +88,23 @@ class CatalogApiIntegrationTests {
 				""".formatted(gameId));
 		assertThat(venison).hasStatus(HttpStatus.CREATED);
 		var venisonId = json(venison, "$.id");
+		int venisonVersion = JsonPath.read(content(venison), "$.version");
 
 		assertThat(put("/food-categories/" + gameId, """
-				{ "name": "Game & venison", "emoji": "🦌", "shelfLifeMonths": 10 }
-				""")).hasStatusOk().bodyJson().extractingPath("$.shelfLifeMonths").isEqualTo(10);
+				{ "name": "Game & venison", "emoji": "🦌", "shelfLifeMonths": 10, "version": %d }
+				""".formatted(gameVersion))).hasStatusOk().bodyJson().extractingPath("$.shelfLifeMonths").isEqualTo(10);
 
 		var poultry = categoryNamed("Poultry");
 		assertThat(put("/products/" + venisonId, """
-				{ "name": "Wild duck", "categoryId": "%s" }
-				""".formatted(poultry))).hasStatusOk().bodyJson().isLenientlyEqualTo("""
+				{ "name": "Wild duck", "categoryId": "%s", "version": %d }
+				""".formatted(poultry, venisonVersion))).hasStatusOk().bodyJson().isLenientlyEqualTo("""
 				{ "name": "Wild duck", "categoryId": "%s" }
 				""".formatted(poultry));
 
-		assertThat(delete("/food-categories/" + gameId)).hasStatus(HttpStatus.NO_CONTENT);
-		assertThat(delete("/products/" + venisonId)).hasStatus(HttpStatus.NO_CONTENT);
+		assertThat(delete("/food-categories/" + gameId + "?version=" + (gameVersion + 1)))
+				.hasStatus(HttpStatus.NO_CONTENT);
+		assertThat(delete("/products/" + venisonId + "?version=" + (venisonVersion + 1)))
+				.hasStatus(HttpStatus.NO_CONTENT);
 		assertThat(mvc.get().uri(api("/products")).with(alice)).bodyJson()
 				.extractingPath("$[*].name").asArray().doesNotContain("Venison", "Wild duck");
 	}
@@ -114,8 +118,9 @@ class CatalogApiIntegrationTests {
 				""".formatted(vegetables))).hasStatus(HttpStatus.CONFLICT).bodyJson()
 				.extractingPath("$.detail").isEqualTo("There already is a product named “PEAS”.");
 		assertThat(put("/food-categories/" + vegetables, """
-				{ "name": "fruit", "emoji": "🥦", "shelfLifeMonths": 12 }
-				""")).hasStatus(HttpStatus.CONFLICT);
+				{ "name": "fruit", "emoji": "🥦", "shelfLifeMonths": 12, "version": 0 }
+				""")).hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.code")
+				.isEqualTo("catalog.category.name-taken");
 	}
 
 	@Test
@@ -136,7 +141,8 @@ class CatalogApiIntegrationTests {
 
 	@Test
 	void onlyEmptyCategoriesCanBeRemoved() {
-		assertThat(delete("/food-categories/" + categoryNamed("Vegetables"))).hasStatus(HttpStatus.CONFLICT)
+		assertThat(delete("/food-categories/" + categoryNamed("Vegetables") + "?version=0"))
+				.hasStatus(HttpStatus.CONFLICT)
 				.bodyJson().extractingPath("$.detail")
 				.isEqualTo("“Vegetables” still has products. Move or remove them first.");
 	}
@@ -183,7 +189,8 @@ class CatalogApiIntegrationTests {
 			assertThat(mvc.get().uri(api(path)).with(carol)).hasStatus(HttpStatus.NOT_FOUND);
 		}
 		assertThat(send(mvc.put().uri("/api/households/" + carolsHousehold + "/food-categories/" + vegetables), carol,
-				"{ \"name\": \"Mine\", \"emoji\": \"🥦\", \"shelfLifeMonths\": 12 }")).hasStatus(HttpStatus.NOT_FOUND);
+				"{ \"name\": \"Mine\", \"emoji\": \"🥦\", \"shelfLifeMonths\": 12, \"version\": 0 }"))
+				.hasStatus(HttpStatus.NOT_FOUND);
 		assertThat(send(mvc.post().uri("/api/households/" + carolsHousehold + "/products"), carol,
 				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
 	}
@@ -199,13 +206,15 @@ class CatalogApiIntegrationTests {
 				+ json(send(mvc.post().uri("/api/households"), carol, "{ \"name\": \"Carol's\" }"), "$.id");
 
 		assertThat(send(mvc.put().uri(carols + "/products/" + peas.getFirst()), carol,
-				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
-		assertThat(mvc.delete().uri(carols + "/products/" + peas.getFirst()).with(carol))
+				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\", \"version\": 0 }"))
 				.hasStatus(HttpStatus.NOT_FOUND);
-		assertThat(mvc.delete().uri(carols + "/food-categories/" + vegetables).with(carol))
+		assertThat(mvc.delete().uri(carols + "/products/" + peas.getFirst() + "?version=0").with(carol))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(carols + "/food-categories/" + vegetables + "?version=0").with(carol))
 				.hasStatus(HttpStatus.NOT_FOUND);
 		assertThat(send(mvc.put().uri(carols + "/food-categories/" + vegetables), carol,
-				"{ \"name\": \"Mine\", \"emoji\": \"🥦\", \"shelfLifeMonths\": 12 }")).hasStatus(HttpStatus.NOT_FOUND);
+				"{ \"name\": \"Mine\", \"emoji\": \"🥦\", \"shelfLifeMonths\": 12, \"version\": 0 }"))
+				.hasStatus(HttpStatus.NOT_FOUND);
 		assertThat(send(mvc.post().uri(carols + "/products"), carol,
 				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
 

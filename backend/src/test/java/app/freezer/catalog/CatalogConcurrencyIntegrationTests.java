@@ -81,12 +81,13 @@ class CatalogConcurrencyIntegrationTests {
 	@Test
 	void addingAProductToACategoryRemovedInTheMeantimeIsAConflict() {
 		var household = newHousehold();
-		var game = json(send(mvc.post().uri(api(household, "/food-categories")), """
+		String game = json(send(mvc.post().uri(api(household, "/food-categories")), """
 				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 9 }
 				"""), "$.id");
 		var categoryId = FoodCategoryId.of(UUID.fromString(game));
 		var beforeRemoval = categories.findById(categoryId).orElseThrow();
-		assertThat(mvc.delete().uri(api(household, "/food-categories/" + game)).with(alice))
+		var version = beforeRemoval.getVersion();
+		assertThat(mvc.delete().uri(api(household, "/food-categories/" + game + "?version=" + version)).with(alice))
 				.hasStatus(HttpStatus.NO_CONTENT);
 		// Adding the product still finds the category: another member removes it a moment later.
 		doReturn(Optional.of(beforeRemoval)).when(categories).findById(categoryId);
@@ -95,6 +96,99 @@ class CatalogConcurrencyIntegrationTests {
 				{ "name": "Venison", "categoryId": "%s" }
 				""".formatted(game))).hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.detail")
 				.isEqualTo("Someone else changed this at the same time. Please reload and try again.");
+	}
+
+	/** Alice and Bob both see the same version of the venison; Bob saves first, Alice's change would overwrite his. */
+	@Test
+	void changingAFoodSomeoneElseChangedInTheMeantimeIsAConflict() {
+		var household = newHousehold();
+		var game = defineCategory(household);
+		var venison = send(mvc.post().uri(api(household, "/products")), """
+				{ "name": "Venison", "categoryId": "%s" }
+				""".formatted(game));
+		String id = json(venison, "$.id");
+		int seen = json(venison, "$.version");
+
+		var bobs = send(mvc.put().uri(api(household, "/products/" + id)), """
+				{ "name": "Deer", "categoryId": "%s", "version": %d }
+				""".formatted(game, seen));
+		assertThat(bobs).hasStatusOk().bodyJson().extractingPath("$.version").isEqualTo(seen + 1);
+
+		var alices = send(mvc.put().uri(api(household, "/products/" + id)), """
+				{ "name": "Roe deer", "categoryId": "%s", "version": %d }
+				""".formatted(game, seen));
+		assertThat(alices).hasStatus(HttpStatus.CONFLICT).bodyJson().isLenientlyEqualTo("""
+				{ "detail": "Someone else changed this food in the meantime. Here is the current version.",
+				  "code": "catalog.product.changed" }
+				""");
+		assertThat(mvc.delete().uri(api(household, "/products/" + id + "?version=" + seen)).with(alice)
+				.header("Accept-Language", "de")).hasStatus(HttpStatus.CONFLICT).bodyJson()
+				.extractingPath("$.detail")
+				.isEqualTo("Jemand anderer hat dieses Lebensmittel inzwischen geändert. "
+						+ "Hier siehst du den aktuellen Stand.");
+		assertThat(mvc.get().uri(api(household, "/products")).with(alice)).bodyJson()
+				.extractingPath("$[?(@.id == '%s')].name".formatted(id)).asArray().containsExactly("Deer");
+
+		assertThat(mvc.delete().uri(api(household, "/products/" + id + "?version=" + (seen + 1))).with(alice))
+				.hasStatus(HttpStatus.NO_CONTENT);
+	}
+
+	@Test
+	void changingACategorySomeoneElseChangedInTheMeantimeIsAConflict() {
+		var household = newHousehold();
+		var game = send(mvc.post().uri(api(household, "/food-categories")), """
+				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 9 }
+				""");
+		String id = json(game, "$.id");
+		int seen = json(game, "$.version");
+
+		assertThat(send(mvc.put().uri(api(household, "/food-categories/" + id)), """
+				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 12, "version": %d }
+				""".formatted(seen))).hasStatusOk().bodyJson().extractingPath("$.version").isEqualTo(seen + 1);
+
+		assertThat(send(mvc.put().uri(api(household, "/food-categories/" + id)), """
+				{ "name": "Venison", "emoji": "🦌", "shelfLifeMonths": 6, "version": %d }
+				""".formatted(seen))).hasStatus(HttpStatus.CONFLICT).bodyJson().isLenientlyEqualTo("""
+				{ "detail": "Someone else changed this category in the meantime. Here is the current version.",
+				  "code": "catalog.category.changed" }
+				""");
+		assertThat(mvc.delete().uri(api(household, "/food-categories/" + id + "?version=" + seen)).with(alice)
+				.header("Accept-Language", "de")).hasStatus(HttpStatus.CONFLICT).bodyJson()
+				.extractingPath("$.detail")
+				.isEqualTo("Jemand anderer hat diese Kategorie inzwischen geändert. "
+						+ "Hier siehst du den aktuellen Stand.");
+
+		assertThat(mvc.delete().uri(api(household, "/food-categories/" + id + "?version=" + (seen + 1)))
+				.with(alice)).hasStatus(HttpStatus.NO_CONTENT);
+	}
+
+	/** Every change says which version it was made to; otherwise it could overwrite what its sender never saw. */
+	@Test
+	void changesWithoutAVersionAreRejected() {
+		var household = newHousehold();
+		var game = defineCategory(household);
+		String venison = json(send(mvc.post().uri(api(household, "/products")), """
+				{ "name": "Venison", "categoryId": "%s" }
+				""".formatted(game)), "$.id");
+
+		assertThat(send(mvc.put().uri(api(household, "/products/" + venison)), """
+				{ "name": "Deer", "categoryId": "%s" }
+				""".formatted(game))).hasStatus(HttpStatus.BAD_REQUEST);
+		assertThat(send(mvc.put().uri(api(household, "/food-categories/" + game)), """
+				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 12 }
+				""")).hasStatus(HttpStatus.BAD_REQUEST);
+		assertThat(mvc.delete().uri(api(household, "/products/" + venison)).with(alice)
+				.header("Accept-Language", "de")).hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+				.extractingPath("$.detail").isEqualTo("Einige Angaben fehlen oder sind ungültig.");
+		assertThat(mvc.delete().uri(api(household, "/food-categories/" + game)).with(alice))
+				.hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.detail")
+				.isEqualTo("Some values are missing or invalid.");
+	}
+
+	private String defineCategory(String household) {
+		return json(send(mvc.post().uri(api(household, "/food-categories")), """
+				{ "name": "Game", "emoji": "🦌", "shelfLifeMonths": 9 }
+				"""), "$.id");
 	}
 
 	private String newHousehold() {
@@ -109,7 +203,7 @@ class CatalogConcurrencyIntegrationTests {
 		return request.with(alice).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 	}
 
-	private static String json(MvcTestResult result, String path) {
+	private static <T> T json(MvcTestResult result, String path) {
 		try {
 			return JsonPath.read(result.getResponse().getContentAsString(), path);
 		}

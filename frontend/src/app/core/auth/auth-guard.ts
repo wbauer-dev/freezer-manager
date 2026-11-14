@@ -1,18 +1,27 @@
 import { inject } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
-import { OidcSecurityService, autoLoginPartialRoutesGuard } from 'angular-auth-oidc-client';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 const RETURN_URL = 'freezer.returnUrl';
 
 /**
  * Sends users who are not logged in to the identity provider — and remembers where they wanted to go (e.g. a scanned
  * label), so the callback page can take them there afterwards.
+ *
+ * Deliberately not the library's autoLoginPartialRoutesGuard: that one keeps a return address of its own and
+ * navigates there while the login completes, before the callback page runs. With two mechanisms, the app's address
+ * was left behind and sent a later login to an old page. Now every login start (here and in SessionExpiry) remembers
+ * the address, and AuthCallback alone takes it.
  */
-export const authGuard: CanActivateFn = (route, state) => {
-  if (!inject(OidcSecurityService).authenticated().isAuthenticated) {
-    rememberReturnUrl(state.url);
+export const authGuard: CanActivateFn = (_route, state) => {
+  const auth = inject(OidcSecurityService);
+  // The login state is known here: the app initializer completes the auth check before the first navigation.
+  if (auth.authenticated().isAuthenticated) {
+    return true;
   }
-  return autoLoginPartialRoutesGuard(route, state);
+  rememberReturnUrl(state.url);
+  auth.authorize();
+  return false;
 };
 
 /** Where to continue after logging in. */

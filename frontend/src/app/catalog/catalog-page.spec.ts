@@ -10,9 +10,17 @@ const VEGETABLES: FoodCategory = {
   name: 'Vegetables',
   emoji: '🥦',
   shelfLifeMonths: 12,
+  version: 2,
 };
-const MEAT: FoodCategory = { id: 'c-meat', name: 'Meat', emoji: '🥩', shelfLifeMonths: 6 };
-const PEAS: Product = { id: 'p1', name: 'Peas', categoryId: 'c-veg' };
+const MEAT: FoodCategory = {
+  id: 'c-meat',
+  name: 'Meat',
+  emoji: '🥩',
+  shelfLifeMonths: 6,
+  version: 0,
+};
+const PEAS: Product = { id: 'p1', name: 'Peas', categoryId: 'c-veg', version: 3 };
+const CORN: Product = { id: 'p2', name: 'Corn', categoryId: 'c-veg', version: 0 };
 
 describe('CatalogPage', () => {
   let http: HttpTestingController;
@@ -66,19 +74,38 @@ describe('CatalogPage', () => {
     field.dispatchEvent(new KeyboardEvent('keydown', { key }));
   }
 
-  /** Opens the food's menu (an overlay outside the component) and chooses Rename. */
-  async function startRenaming(name: string): Promise<HTMLInputElement> {
+  /**
+   * Opens the food's menu (an overlay outside the component) and chooses an item. While the catalog is being loaded,
+   * the page is not stable: pass a settle function that does not wait for it.
+   */
+  async function choose(
+    name: string,
+    menuItem: string,
+    settle: () => Promise<unknown> = () => fixture.whenStable(),
+  ): Promise<void> {
     const food = Array.from(fixture.nativeElement.querySelectorAll('button.food')).find(
       (button) => (button as HTMLElement).textContent?.trim() === name,
     ) as HTMLButtonElement;
     food.click();
-    await fixture.whenStable();
-    const rename = Array.from(document.querySelectorAll('.mat-mdc-menu-item')).find((item) =>
-      item.textContent?.includes('Rename'),
+    await settle();
+    const item = Array.from(document.querySelectorAll('.mat-mdc-menu-item')).find((each) =>
+      each.textContent?.includes(menuItem),
     ) as HTMLButtonElement;
-    rename.click();
-    await fixture.whenStable();
+    item.click();
+    await settle();
+  }
+
+  async function startRenaming(
+    name: string,
+    settle?: () => Promise<unknown>,
+  ): Promise<HTMLInputElement> {
+    await choose(name, 'Rename', settle);
     return element<HTMLInputElement>('input.rename');
+  }
+
+  /** The text of the snackbar, which lives in an overlay outside the component. */
+  function snackBarText(): string | null | undefined {
+    return document.querySelector('.mat-mdc-snack-bar-label')?.textContent;
   }
 
   it('renames a food on Enter, once', async () => {
@@ -92,9 +119,9 @@ describe('CatalogPage', () => {
     await fixture.whenStable();
 
     const request = http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' });
-    expect(request.request.body).toEqual({ name: 'Garden peas', categoryId: 'c-veg' });
-    request.flush({ ...PEAS, name: 'Garden peas' });
-    await reloaded([{ ...PEAS, name: 'Garden peas' }]);
+    expect(request.request.body).toEqual({ name: 'Garden peas', categoryId: 'c-veg', version: 3 });
+    request.flush({ ...PEAS, name: 'Garden peas', version: 4 });
+    await reloaded([{ ...PEAS, name: 'Garden peas', version: 4 }]);
     expect(element('input.rename')).toBeNull();
     expect(text()).toContain('Garden peas');
   });
@@ -109,6 +136,141 @@ describe('CatalogPage', () => {
 
     http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' }).flush(PEAS);
     await reloaded();
+  });
+
+  it('changes a food in the version the answer brings, before the catalog is loaded again', async () => {
+    await open();
+    let field = await startRenaming('Peas');
+    field.value = 'Garden peas';
+    press(field, 'Enter');
+    await fixture.whenStable();
+    http
+      .expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' })
+      .flush({ ...PEAS, name: 'Garden peas', version: 4 });
+    // The catalog is being loaded again, but has not arrived yet.
+    const tick = async () => TestBed.tick();
+    await tick();
+
+    field = await startRenaming('Garden peas', tick);
+    field.value = 'Sweet peas';
+    press(field, 'Enter');
+    await tick();
+
+    const request = http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' });
+    expect(request.request.body.version).toBe(4);
+    request.flush({ ...PEAS, name: 'Sweet peas', version: 5 });
+    TestBed.tick();
+    http.expectOne('/api/households/h1/food-categories').flush([VEGETABLES]);
+    // The second answer took over from the first loading of the foods, which was cancelled.
+    const loads = http.match('/api/households/h1/products').filter((load) => !load.cancelled);
+    expect(loads.length).toBe(1);
+    loads[0].flush([{ ...PEAS, name: 'Sweet peas', version: 5 }]);
+    await fixture.whenStable();
+    expect(text()).toContain('Sweet peas');
+  });
+
+  it('sends a quick second change to a food only after the first, with the version it returned', async () => {
+    await open();
+    const field = await startRenaming('Peas');
+    field.value = 'Garden peas';
+    press(field, 'Enter');
+    const tick = async () => TestBed.tick();
+    await tick();
+    const rename = http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' });
+
+    // Removed while the rename is still being saved: it waits instead of sending the version both started from.
+    await choose('Peas', 'Remove', tick);
+    http.expectNone((each) => each.method === 'DELETE');
+
+    rename.flush({ ...PEAS, name: 'Garden peas', version: 4 });
+    await new Promise((resolve) => setTimeout(resolve));
+    await tick();
+    const remove = http.expectOne(
+      (each) => each.method === 'DELETE' && each.url === '/api/households/h1/products/p1',
+    );
+    expect(remove.request.params.get('version')).toBe('4');
+    remove.flush(null, { status: 204, statusText: 'No Content' });
+    for (const load of http.match(
+      (each) => each.url.startsWith('/api/households/h1/') && each.method === 'GET',
+    )) {
+      if (!load.cancelled) {
+        load.flush(load.request.url.endsWith('products') ? [] : [VEGETABLES]);
+      }
+    }
+    await fixture.whenStable();
+  });
+
+  it('removes a food in the version it shows', async () => {
+    await open();
+
+    await choose('Peas', 'Remove');
+
+    const request = http.expectOne(
+      (each) => each.method === 'DELETE' && each.url === '/api/households/h1/products/p1',
+    );
+    expect(request.request.params.get('version')).toBe('3');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await reloaded([]);
+  });
+
+  it('shows what another member changed in the meantime instead of overwriting it', async () => {
+    await open();
+    const field = await startRenaming('Peas');
+    field.value = 'Garden peas';
+    press(field, 'Enter');
+    await fixture.whenStable();
+
+    http.expectOne({ method: 'PUT', url: '/api/households/h1/products/p1' }).flush(
+      {
+        detail: 'Someone else changed this food in the meantime. Here is the current version.',
+        code: 'catalog.product.changed',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await reloaded([{ ...PEAS, name: 'Frozen peas', version: 4 }]);
+
+    expect(text()).toContain('Frozen peas');
+    expect(snackBarText()).toContain(
+      'Someone else changed this food in the meantime. Here is the current version.',
+    );
+  });
+
+  it('closes the editor and shows the current category if another member changed it', async () => {
+    await open();
+    element<HTMLButtonElement>('button[aria-label="Edit Vegetables"]').click();
+    await fixture.whenStable();
+
+    element<HTMLFormElement>('form.editor').dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    const request = http.expectOne({
+      method: 'PUT',
+      url: '/api/households/h1/food-categories/c-veg',
+    });
+    expect(request.request.body).toEqual({
+      name: 'Vegetables',
+      emoji: '🥦',
+      shelfLifeMonths: 12,
+      version: 2,
+    });
+    request.flush(
+      {
+        detail: 'Someone else changed this category in the meantime. Here is the current version.',
+        code: 'catalog.category.changed',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    TestBed.tick();
+    http
+      .expectOne('/api/households/h1/food-categories')
+      .flush([{ ...VEGETABLES, name: 'Greens', version: 3 }]);
+    await fixture.whenStable();
+
+    expect(element('form.editor')).toBeNull();
+    expect(text()).toContain('Greens');
+    expect(snackBarText()).toContain(
+      'Someone else changed this category in the meantime. Here is the current version.',
+    );
   });
 
   it('keeps the name on Escape', async () => {
@@ -136,8 +298,8 @@ describe('CatalogPage', () => {
 
     const request = http.expectOne({ method: 'POST', url: '/api/households/h1/products' });
     expect(request.request.body).toEqual({ name: 'Corn', categoryId: 'c-veg' });
-    request.flush({ id: 'p2', name: 'Corn', categoryId: 'c-veg' });
-    await reloaded([PEAS, { id: 'p2', name: 'Corn', categoryId: 'c-veg' }]);
+    request.flush(CORN);
+    await reloaded([PEAS, CORN]);
     expect(field.value).toBe('');
   });
 
@@ -148,9 +310,7 @@ describe('CatalogPage', () => {
     press(field, 'Enter');
     field.value = 'Carr';
 
-    http
-      .expectOne({ method: 'POST', url: '/api/households/h1/products' })
-      .flush({ id: 'p2', name: 'Corn', categoryId: 'c-veg' });
+    http.expectOne({ method: 'POST', url: '/api/households/h1/products' }).flush(CORN);
     await reloaded();
 
     expect(field.value).toBe('Carr');
@@ -170,11 +330,7 @@ describe('CatalogPage', () => {
   it('counts several categories and foods in the plural', async () => {
     await open(
       [VEGETABLES, MEAT],
-      [
-        PEAS,
-        { id: 'p2', name: 'Corn', categoryId: 'c-veg' },
-        { id: 'p3', name: 'Beef', categoryId: 'c-meat' },
-      ],
+      [PEAS, CORN, { id: 'p3', name: 'Beef', categoryId: 'c-meat', version: 0 }],
     );
 
     element<HTMLButtonElement>('.start-over-button').click();

@@ -95,6 +95,11 @@ public class Product implements AggregateRoot<Product, ProductId> {
 		return categoryId;
 	}
 
+	/** Counts the saved changes; {@code null} until the product is saved for the first time. */
+	public Long getVersion() {
+		return version;
+	}
+
 	@DomainEvents
 	Collection<DomainEvent> domainEvents() {
 		return List.copyOf(events);

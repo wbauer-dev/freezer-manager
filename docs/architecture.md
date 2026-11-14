@@ -39,6 +39,17 @@ one bounded context: `household`, `catalog`, `inventory`, `labeling`, `media`, `
   transaction committed, asynchronously, in a transaction of its own. Example: Labeling follows
   Inventory (`ItemFrozen`, `ItemConsumed`, …) and never calls it. Reactions must tolerate events
   that don't apply (e.g. a release for a label that has moved on).
+- **Events arrive late, twice and out of order**: listeners run concurrently, and a failed reaction is
+  retried after later events were handled. Where the order matters, the sending aggregate counts its
+  events and stamps the number on each one — a domain-level revision, known when the event is created,
+  not the `@Version`, which is only known after saving. The receiving aggregate remembers the newest
+  revision it applied and ignores an event that is not newer; that decision is a domain rule, not
+  listener plumbing. Example: every `FrozenItem` event carries the item's revision, and a `Label`
+  ignores stale events of its item (domain-model.md § 5.2).
+- **Events evolve.** A publication may wait in `event_publication` while its event gains a component.
+  `EventPublicationSerializer` (base package) reads such old publications with the component's default
+  (`null`, `0`, `false`), where Spring Modulith's serializer would fail on a missing primitive. A new
+  component's default must therefore mean "unknown" to the listeners (revision 0 is applied as it comes).
 - `sharedkernel` holds the few types two contexts agree on and change together (currently
   `LabelCode`). Keep it small — everything added there couples its users.
 - Dependencies between modules must not form cycles.
@@ -104,6 +115,11 @@ with Bean Validation for early, friendly error messages.
   advice: invalid values (`IllegalArgumentException`) → 400, unknown resources → 404, rule
   violations (e.g. `InventoryRuleViolation`) and concurrent changes (optimistic locking) → 409.
 - The `detail` is in the user's language (see [Languages](#languages)).
+- Catalog categories and products carry their `version` to the browser as an optimistic concurrency token: every
+  change sends it back (in the body, or as the `version` parameter of a `DELETE`; required, else 400), and a change to
+  an outdated version gets 409 with a specific message, also as the problem's `code` (`catalog.product.changed`), so
+  nobody silently overwrites what another member changed. The application layer compares it (`ExpectedVersion`);
+  `@Version` still guards the moment between loading and saving.
 
 ### Languages
 

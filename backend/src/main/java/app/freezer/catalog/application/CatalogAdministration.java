@@ -24,6 +24,9 @@ import app.freezer.household.HouseholdMember;
  * {@link CatalogSetup#ensureStarted} first. Not from within these methods: it starts the catalog in a transaction of
  * its own, which inside one of theirs would hold a second connection — and many members opening their catalogs for
  * the first time at once could exhaust the connection pool.
+ * <p>
+ * Changes to an existing category or product take the version the member last saw ({@link ExpectedVersion}): if
+ * another member changed it in the meantime, the change is rejected instead of silently overwriting theirs.
  */
 @Service
 @Transactional
@@ -64,17 +67,17 @@ public class CatalogAdministration {
 		return categories.save(category);
 	}
 
-	public FoodCategory editCategory(HouseholdMember member, FoodCategoryId id, String name, String emoji,
-			int shelfLifeMonths) {
-		var category = categoryOf(member, id);
+	public FoodCategory editCategory(HouseholdMember member, FoodCategoryId id, ExpectedVersion version, String name,
+			String emoji, int shelfLifeMonths) {
+		var category = categoryOf(member, id, version);
 		category.edit(name, emoji, shelfLifeMonths);
 		requireFreeCategoryName(category);
 		return categories.save(category);
 	}
 
 	/** Only categories without products can be removed — a question about the products, so it is asked here. */
-	public void removeCategory(HouseholdMember member, FoodCategoryId id) {
-		var category = categoryOf(member, id);
+	public void removeCategory(HouseholdMember member, FoodCategoryId id, ExpectedVersion version) {
+		var category = categoryOf(member, id, version);
 		if (products.anyInCategory(id)) {
 			throw new CatalogRuleViolation("catalog.category.not-empty", category.getName());
 		}
@@ -88,8 +91,9 @@ public class CatalogAdministration {
 		return products.save(product);
 	}
 
-	public Product editProduct(HouseholdMember member, ProductId id, String name, FoodCategoryId categoryId) {
-		var product = productOf(member, id);
+	public Product editProduct(HouseholdMember member, ProductId id, ExpectedVersion version, String name,
+			FoodCategoryId categoryId) {
+		var product = productOf(member, id, version);
 		product.rename(name);
 		product.moveTo(categoryOf(member, categoryId));
 		requireFreeProductName(product);
@@ -97,8 +101,8 @@ public class CatalogAdministration {
 	}
 
 	/** Items in the freezer keep their name and best-before date. */
-	public void removeProduct(HouseholdMember member, ProductId id) {
-		products.delete(productOf(member, id));
+	public void removeProduct(HouseholdMember member, ProductId id, ExpectedVersion version) {
+		products.delete(productOf(member, id, version));
 	}
 
 	// Unique names concern all categories or products of the household: checked here, backed by unique indexes.
@@ -125,10 +129,19 @@ public class CatalogAdministration {
 				.orElseThrow(() -> new CatalogNotFoundException("catalog.category.not-found"));
 	}
 
-	private Product productOf(HouseholdMember member, ProductId id) {
-		return products.findById(id)
-				.filter(product -> product.belongsTo(member.householdId()))
+	/** The category to change, as the member saw it. */
+	private FoodCategory categoryOf(HouseholdMember member, FoodCategoryId id, ExpectedVersion version) {
+		var category = categoryOf(member, id);
+		version.requireCurrent(category.getVersion(), "catalog.category.changed");
+		return category;
+	}
+
+	private Product productOf(HouseholdMember member, ProductId id, ExpectedVersion version) {
+		var product = products.findById(id)
+				.filter(candidate -> candidate.belongsTo(member.householdId()))
 				.orElseThrow(() -> new CatalogNotFoundException("catalog.product.not-found"));
+		version.requireCurrent(product.getVersion(), "catalog.product.changed");
+		return product;
 	}
 
 }

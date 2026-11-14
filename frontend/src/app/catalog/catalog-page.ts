@@ -13,7 +13,7 @@ import { Observable, finalize } from 'rxjs';
 
 import { Autofocus } from '../shared/autofocus';
 import { EMOJI_SUGGESTIONS, foodHue } from '../shared/food';
-import { problemMessage } from '../shared/problem-message';
+import { problemCode, problemMessage } from '../shared/problem-message';
 import { CatalogApi } from './catalog-api';
 import {
   CatalogInfo,
@@ -30,13 +30,25 @@ interface CategoryDraft {
   name: string;
   emoji: string;
   shelfLifeMonths: number;
+  /** The version being edited; null for a new category. */
+  version: number | null;
 }
 
-const NEW_CATEGORY: CategoryDraft = { id: null, name: '', emoji: '🍲', shelfLifeMonths: 6 };
+const NEW_CATEGORY: CategoryDraft = {
+  id: null,
+  name: '',
+  emoji: '🍲',
+  shelfLifeMonths: 6,
+  version: null,
+};
 
 /**
  * The household's foods: categories with their shelf life, and the products in them. Every member may change
  * them, or start over with an empty catalog or the system defaults.
+ *
+ * Changes send the version of the category or food as the page shows it, and the page takes the new version from
+ * the answer. If another member changed it in the meantime, the change is rejected: the page shows the catalog as it
+ * is now and explains why, so the member can make the change again.
  */
 @Component({
   selector: 'app-catalog-page',
@@ -122,6 +134,8 @@ export class CatalogPage {
 
   /** Commands in flight. The same command again — a second Enter, a double click — is ignored meanwhile. */
   private readonly inFlight = new Set<string>();
+  /** The last change to each food, so the next one waits for it (see run). */
+  private readonly queues = new Map<string, Promise<void>>();
 
   protected startNewCategory(): void {
     this.draft.set({ ...NEW_CATEGORY });
@@ -172,18 +186,31 @@ export class CatalogPage {
       return;
     }
     const category = { name, emoji, shelfLifeMonths: draft.shelfLifeMonths };
-    const save: Observable<unknown> = draft.id
-      ? this.api.editCategory(this.householdId(), { id: draft.id, ...category })
-      : this.api.defineCategory(this.householdId(), category);
+    const save: Observable<FoodCategory> =
+      draft.id !== null && draft.version !== null
+        ? this.api.editCategory(this.householdId(), {
+            id: draft.id,
+            version: draft.version,
+            ...category,
+          })
+        : this.api.defineCategory(this.householdId(), category);
     this.saving.set(true);
     save.subscribe({
-      next: () => {
+      next: (saved) => {
         this.saving.set(false);
         this.draft.set(null);
+        this.categories.update((categories) => withItem(categories, saved));
         this.categories.reload();
       },
       error: (error) => {
         this.saving.set(false);
+        if (problemCode(error) === 'catalog.category.changed') {
+          // Editing what the member saw makes no sense anymore: show what the category is now.
+          this.draft.set(null);
+          this.categories.reload();
+          this.showProblem(error);
+          return;
+        }
         this.draftError.set(
           problemMessage(
             error,
@@ -199,7 +226,7 @@ export class CatalogPage {
     this.draft.set(null);
     this.run(
       `remove-category:${category.id}`,
-      this.api.removeCategory(this.householdId(), category.id),
+      () => this.api.removeCategory(this.householdId(), category),
       () =>
         this.snackBar.open(
           $localize`:@@catalog.category.removed:${category.name}:name: removed`,
@@ -216,7 +243,7 @@ export class CatalogPage {
     if (name) {
       this.run(
         `new-food:${normalize(name)}`,
-        this.api.defineProduct(this.householdId(), name, category.id),
+        () => this.api.defineProduct(this.householdId(), name, category.id),
         () => {
           // Keep what was typed in the meantime.
           if (input.value.trim() === name) {
@@ -240,7 +267,9 @@ export class CatalogPage {
     if (name && name !== product.name) {
       this.run(
         `rename:${product.id}`,
-        this.api.editProduct(this.householdId(), { ...product, name }),
+        () => this.api.editProduct(this.householdId(), { ...this.current(product), name }),
+        (renamed) => this.products.update((products) => withItem(products, renamed)),
+        product.id,
       );
     }
   }
@@ -248,20 +277,27 @@ export class CatalogPage {
   protected moveTo(product: Product, category: FoodCategory): void {
     this.run(
       `move:${product.id}`,
-      this.api.editProduct(this.householdId(), { ...product, categoryId: category.id }),
       () =>
+        this.api.editProduct(this.householdId(), {
+          ...this.current(product),
+          categoryId: category.id,
+        }),
+      (moved) => {
+        this.products.update((products) => withItem(products, moved));
         this.snackBar.open(
           $localize`:@@catalog.product.moved:${product.name}:product: moved to ${category.name}:category:`,
           undefined,
           { duration: 3000 },
-        ),
+        );
+      },
+      product.id,
     );
   }
 
   protected removeProduct(product: Product): void {
     this.run(
       `remove-food:${product.id}`,
-      this.api.removeProduct(this.householdId(), product.id),
+      () => this.api.removeProduct(this.householdId(), this.current(product)),
       () =>
         this.snackBar.open(
           $localize`:@@catalog.product.removed:${product.name}:name: removed`,
@@ -270,6 +306,7 @@ export class CatalogPage {
             duration: 3000,
           },
         ),
+      product.id,
     );
   }
 
@@ -278,7 +315,8 @@ export class CatalogPage {
     const mode = this.resetMode();
     this.run(
       'reset',
-      this.api.reset(this.householdId(), mode, mode === 'DEFAULTS' ? this.resetLanguage() : null),
+      () =>
+        this.api.reset(this.householdId(), mode, mode === 'DEFAULTS' ? this.resetLanguage() : null),
       () => {
         this.info.reload();
         this.snackBar.open(
@@ -309,32 +347,83 @@ export class CatalogPage {
     return $localize`:@@catalog.product.addLabel:New food in ${category.name}:name:`;
   }
 
-  /** Runs a command unless the same one (by key) is still in flight, then shows the catalog as it is now. */
-  private run(key: string, command: Observable<unknown>, onSuccess?: () => void): void {
+  /**
+   * Runs a command unless the same one (by key) is still in flight, then shows the catalog as it is now. A command
+   * that failed — e.g. because another member changed the food in the meantime — is explained in a snackbar.
+   *
+   * Changes to the same food (`queue`) run one after the other: each is created only when the one before has
+   * finished, so it sends the version that one returned. Otherwise a quick rename and move would both send the same
+   * version, and the second would be rejected as if another member had changed the food.
+   */
+  private run<T>(
+    key: string,
+    command: () => Observable<T>,
+    onSuccess?: (result: T) => void,
+    queue?: string,
+  ): void {
     if (this.inFlight.has(key)) {
       return;
     }
     this.inFlight.add(key);
-    command.pipe(finalize(() => this.inFlight.delete(key))).subscribe({
-      next: () => {
-        onSuccess?.();
-        this.categories.reload();
-        this.products.reload();
-      },
-      error: (error) => {
-        this.categories.reload();
-        this.products.reload();
-        this.snackBar.open(
-          problemMessage(
-            error,
-            $localize`:@@common.error.retry:That did not work. Please try again.`,
-          ),
-          $localize`:@@common.ok:OK`,
-          { duration: 6000 },
-        );
-      },
-    });
+    // Sent right away unless a change to the same food is still pending.
+    const start = () =>
+      new Promise<void>((finished) =>
+        command()
+          .pipe(
+            finalize(() => {
+              this.inFlight.delete(key);
+              finished();
+            }),
+          )
+          .subscribe({
+            next: (result) => {
+              // Right away, so that a next change sends the new version even before the catalog is loaded again.
+              onSuccess?.(result);
+              this.categories.reload();
+              this.products.reload();
+            },
+            error: (error) => {
+              this.categories.reload();
+              this.products.reload();
+              this.showProblem(error);
+            },
+          }),
+      );
+    const previous = queue ? this.queues.get(queue) : undefined;
+    const done = previous ? previous.then(start) : start();
+    if (queue) {
+      this.queues.set(queue, done);
+      void done.then(() => {
+        if (this.queues.get(queue) === done) {
+          this.queues.delete(queue);
+        }
+      });
+    }
   }
+
+  /** The food as the page knows it now — with the version of the last change. */
+  private current(product: Product): Product {
+    const products = this.products.hasValue() ? this.products.value() : [];
+    return products.find((known) => known.id === product.id) ?? product;
+  }
+
+  private showProblem(error: unknown): void {
+    this.snackBar.open(
+      problemMessage(error, $localize`:@@common.error.retry:That did not work. Please try again.`),
+      $localize`:@@common.ok:OK`,
+      { duration: 6000 },
+    );
+  }
+}
+
+/** The items with this one in its new version, or added at the end if it is new. */
+function withItem<T extends { id: string }>(items: T[] | undefined, item: T): T[] | undefined {
+  if (!items) {
+    return items;
+  }
+  return items.some((each) => each.id === item.id)
+    ? items.map((each) => (each.id === item.id ? item : each))
+    : [...items, item];
 }
 
 function normalize(text: string): string {
