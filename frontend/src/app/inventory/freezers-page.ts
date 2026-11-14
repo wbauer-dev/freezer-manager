@@ -22,6 +22,7 @@ import { emojiByProduct } from '../catalog/catalog-lookup';
 import { FoodCategory, Product } from '../catalog/catalog.model';
 import { timeLeft } from '../shared/dates';
 import { UNKNOWN_FOOD } from '../shared/food';
+import { LoadError, reloadFailed } from '../shared/load-error';
 import { problemMessage } from '../shared/problem-message';
 import { InventoryApi } from './inventory-api';
 import { Compartment, EatFirstEntry, Freezer } from './inventory.model';
@@ -37,6 +38,7 @@ const MAX_NAME_LENGTH = 40;
     CdkDragPlaceholder,
     CdkDropList,
     FormField,
+    LoadError,
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
@@ -131,6 +133,10 @@ export class FreezersPage {
     });
   }
 
+  protected reload(): void {
+    reloadFailed(this.freezers, this.items);
+  }
+
   protected addCompartment(freezer: Freezer, input: HTMLInputElement): void {
     const name = input.value.trim();
     if (name) {
@@ -203,7 +209,7 @@ export class FreezersPage {
   }
 
   protected timeLeft(entry: EatFirstEntry): string {
-    return timeLeft(entry.bestBefore);
+    return timeLeft(entry.bestBefore, entry.expiryStatus);
   }
 
   protected statusClass(entry: EatFirstEntry): string {

@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, catchError, from, switchMap, throwError } from 'rxjs';
 
+import { readProblem } from '../shared/problem-message';
 import { ScannedLabel, StickerLayout } from './labeling.model';
 
 @Injectable({ providedIn: 'root' })
@@ -33,10 +34,13 @@ export class LabelingApi {
     });
   }
 
+  /** The label PDF. Errors carry the problem details as an object, like those of the other requests. */
   print(householdId: string): Observable<Blob> {
-    return this.http.post(`/api/households/${householdId}/label-sheet/print`, null, {
-      responseType: 'blob',
-    });
+    return this.http
+      .post(`/api/households/${householdId}/label-sheet/print`, null, { responseType: 'blob' })
+      .pipe(
+        catchError((error) => from(readProblem(error)).pipe(switchMap((e) => throwError(() => e)))),
+      );
   }
 
   startNewSheet(householdId: string): Observable<void> {

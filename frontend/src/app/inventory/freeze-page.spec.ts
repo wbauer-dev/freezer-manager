@@ -1,20 +1,38 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { today } from '../shared/dates';
 import { FreezePage } from './freeze-page';
 
+const { createObjectURL, revokeObjectURL } = URL;
+
 describe('FreezePage', () => {
   let http: HttpTestingController;
   let fixture: ComponentFixture<FreezePage>;
+  let revoked: string[];
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     http = TestBed.inject(HttpTestingController);
+
+    // The test browser has no object URLs, which show a photo before it is saved.
+    let created = 0;
+    revoked = [];
+    URL.createObjectURL = () => `blob:${++created}`;
+    URL.revokeObjectURL = (url) => revoked.push(url);
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
   });
 
   async function open(freePersistentLabels = 0): Promise<void> {
@@ -88,6 +106,39 @@ describe('FreezePage', () => {
     return new Promise((resolve) => setTimeout(resolve));
   }
 
+  /** Picks a photo from the gallery; it is uploaded right away. */
+  async function pickPhoto(): Promise<void> {
+    const input = element<HTMLInputElement>('input[type="file"]:not([capture])');
+    Object.defineProperty(input, 'files', {
+      value: [new File(['jpeg'], 'peas.jpg', { type: 'image/jpeg' })],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event('change'));
+    await settle();
+    await fixture.whenStable();
+  }
+
+  async function choosePhoto(): Promise<TestRequest> {
+    await pickPhoto();
+    return http.expectOne({ method: 'POST', url: '/api/households/h1/photos' });
+  }
+
+  async function uploaded(upload: TestRequest, id: string): Promise<void> {
+    upload.flush({ id, width: 800, height: 600 });
+    await settle();
+    await fixture.whenStable();
+  }
+
+  function photoButtons(): string[] {
+    return Array.from<HTMLElement>(
+      fixture.nativeElement.querySelectorAll('.photo-row button .mdc-button__label'),
+    ).map((label) => (label.textContent ?? '').trim());
+  }
+
+  function preview(): string | null {
+    return element<HTMLImageElement>('.photo-preview')?.getAttribute('src') ?? null;
+  }
+
   it('freezes an existing product, ignoring case', async () => {
     await open();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -141,6 +192,50 @@ describe('FreezePage', () => {
       .forEach((reload) => reload.flush([]));
   });
 
+  it('waits for the photo to be uploaded before freezing', async () => {
+    await open();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    await enter('#product', 'peas');
+    const upload = await choosePhoto();
+
+    expect(element<HTMLButtonElement>('.freeze-button').disabled).toBe(true);
+    await submitForm();
+    http.expectNone({ method: 'POST', url: '/api/households/h1/items' });
+
+    await uploaded(upload, 'photo-1');
+    expect(element<HTMLButtonElement>('.freeze-button').disabled).toBe(false);
+    await submitForm();
+    const freeze = http.expectOne({ method: 'POST', url: '/api/households/h1/items' });
+    expect(freeze.request.body).toMatchObject({ photoId: 'photo-1' });
+    freeze.flush({ id: 'i1' });
+    await settle();
+  });
+
+  it('changes a photo one upload at a time and releases the previews it no longer shows', async () => {
+    await open();
+    await uploaded(await choosePhoto(), 'photo-1');
+    expect(preview()).toBe('blob:1');
+    expect(photoButtons()).toEqual(['Retake', 'Change', 'Remove']);
+
+    const change = await choosePhoto();
+    expect(photoButtons()).toEqual(['Uploading…']);
+    await uploaded(change, 'photo-2');
+    expect(preview()).toBe('blob:3');
+    expect(revoked).toEqual(['blob:1', 'blob:2']);
+
+    // A photo chosen while another one uploads wins, whichever upload finishes first.
+    await pickPhoto();
+    await pickPhoto();
+    const [slow, fast] = http.match({ method: 'POST', url: '/api/households/h1/photos' });
+    await uploaded(fast, 'photo-4');
+    await uploaded(slow, 'photo-3');
+    expect(preview()).toBe('blob:5');
+
+    await click('.photo-row button:last-of-type');
+    expect(preview()).toBeNull();
+    expect(revoked).toEqual(['blob:1', 'blob:2', 'blob:3', 'blob:4', 'blob:5', 'blob:6']);
+  });
+
   it('asks for a category when the product is new', async () => {
     await open();
     await enter('#product', 'Fish fingers');
@@ -172,11 +267,8 @@ describe('FreezePage', () => {
     expect(field.value).toBe('W4TR-5BXZ');
   });
 
-  it('prefers a persistent label the household owns and can print a contents sticker for it', async () => {
-    await open(3);
-    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    expect(fixture.nativeElement.textContent).toContain('3 free persistent labels');
-
+  /** Freezes peas with a persistent label and a contents sticker; returns the request that queues the sticker. */
+  async function freezeWithContentsSticker(): Promise<TestRequest> {
     await enter('#product', 'peas');
     await enter('#label-code', 'p3rs-1st3');
     fixture.nativeElement.querySelector('.print-contents input').click();
@@ -195,8 +287,15 @@ describe('FreezePage', () => {
     expect(freeze.request.body).toMatchObject({ productId: 'p1', labelCode: 'P3RS1ST3' });
     freeze.flush({ id: 'i3' });
     await settle();
+    return http.expectOne({ method: 'POST', url: '/api/households/h1/label-sheet/queue' });
+  }
 
-    const sticker = http.expectOne({ method: 'POST', url: '/api/households/h1/label-sheet/queue' });
+  it('prefers a persistent label the household owns and can print a contents sticker for it', async () => {
+    await open(3);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    expect(fixture.nativeElement.textContent).toContain('3 free persistent labels');
+
+    const sticker = await freezeWithContentsSticker();
     expect(sticker.request.body).toEqual({
       code: 'P3RS1ST3',
       layout: 'CONTENT_ONLY',
@@ -204,5 +303,23 @@ describe('FreezePage', () => {
     });
     sticker.flush(null);
     await settle();
+
+    expect(navigate).toHaveBeenCalledWith(['..', 'items', 'i3'], expect.anything());
+  });
+
+  it('goes to the frozen item even if its contents sticker could not be queued', async () => {
+    await open(3);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    const sticker = await freezeWithContentsSticker();
+    sticker.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    await fixture.whenStable();
+
+    expect(navigate).toHaveBeenCalledWith(['..', 'items', 'i3'], expect.anything());
+    expect(document.querySelector('.mat-mdc-snack-bar-label')?.textContent).toContain(
+      'Frozen — but the contents sticker could not be added to the print queue.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('could not be frozen');
   });
 });

@@ -56,8 +56,20 @@
   flex: none;
 }
 
-.zoomable {
+/* The avatar, as a button that shows the photo large. */
+.zoom {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
   cursor: zoom-in;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
 }
 
 .photo-button {

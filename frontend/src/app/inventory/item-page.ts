@@ -1,12 +1,24 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse, httpResource } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarRef } from '@angular/material/snack-bar';
 import { Observable, firstValueFrom } from 'rxjs';
 
 import { emojiByProduct } from '../catalog/catalog-lookup';
@@ -30,7 +42,9 @@ const MAX_TILES = 24;
 @Component({
   selector: 'app-item-page',
   imports: [
+    CdkTrapFocus,
     DatePipe,
+    NgTemplateOutlet,
     RouterLink,
     MatButtonModule,
     MatIconModule,
@@ -40,6 +54,7 @@ const MAX_TILES = 24;
   ],
   templateUrl: './item-page.html',
   styleUrl: './item-page.scss',
+  host: { '(document:keydown.escape)': 'closePhoto()' },
 })
 export class ItemPage {
   readonly householdId = input.required<string>();
@@ -70,6 +85,8 @@ export class ItemPage {
 
   protected readonly portionsToTakeOut = signal(1);
   protected readonly busy = signal(false);
+  /** Offers to undo the last take-out; it goes when the take-out is undone on the page, or the page is left. */
+  private undoSnackBar: MatSnackBarRef<unknown> | null = null;
   protected readonly celebrate = signal(false);
   protected readonly discardReasons = DISCARD_REASONS;
   protected readonly dateFormat = DATE_FORMAT;
@@ -95,6 +112,11 @@ export class ItemPage {
     return item?.photoId ? this.photos.url(this.householdId(), item.photoId)() : null;
   });
   protected readonly showingPhoto = signal(false);
+  private readonly zoomButton = viewChild<ElementRef<HTMLButtonElement>>('zoomButton');
+  private readonly lightboxClose = viewChild('lightboxClose', {
+    read: ElementRef<HTMLButtonElement>,
+  });
+  private readonly injector = inject(Injector);
   protected readonly largePhotoUrl = computed(() => {
     const item = this.current();
     return this.showingPhoto() && item?.photoId
@@ -109,7 +131,7 @@ export class ItemPage {
   });
   protected readonly timeLeft = computed(() => {
     const item = this.current();
-    return item ? timeLeft(item.bestBefore) : '';
+    return item ? timeLeft(item.bestBefore, item.expiryStatus) : '';
   });
 
   protected readonly statusLabel = computed(() => {
@@ -141,6 +163,25 @@ export class ItemPage {
       ? Array.from({ length: item.initialPortions }, (_, i) => i)
       : null;
   });
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.undoSnackBar?.dismiss());
+  }
+
+  /** Shows the photo large. Focus moves into it, and back to the photo when it is closed. */
+  protected openPhoto(): void {
+    this.showingPhoto.set(true);
+    afterNextRender(() => this.lightboxClose()?.nativeElement.focus(), {
+      injector: this.injector,
+    });
+  }
+
+  protected closePhoto(): void {
+    if (this.showingPhoto()) {
+      this.showingPhoto.set(false);
+      this.zoomButton()?.nativeElement.focus();
+    }
+  }
 
   /** Tapping a tile selects it and every remaining tile to its right. */
   protected selectFrom(index: number): void {
@@ -175,14 +216,16 @@ export class ItemPage {
           : portions === 1
             ? $localize`:@@item.takenOut.one:1 portion taken out`
             : $localize`:@@item.takenOut.many:${portions}:count: portions taken out`;
-      this.snackBar
-        .open(message, $localize`:@@common.undo:Undo`, { duration: 10000 })
-        .onAction()
-        .subscribe(() => this.undoTakeOut());
+      this.undoSnackBar = this.snackBar.open(message, $localize`:@@common.undo:Undo`, {
+        duration: 10000,
+      });
+      this.undoSnackBar.onAction().subscribe(() => this.undoTakeOut());
     });
   }
 
   protected undoTakeOut(): void {
+    // Undo once: the snackbar's Undo would take back the withdrawal before this one.
+    this.undoSnackBar?.dismiss();
     this.run(this.api.undoTakeOut(this.householdId(), this.itemId()), () => {
       this.celebrate.set(false);
       this.snackBar.open(

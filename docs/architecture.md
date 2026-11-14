@@ -160,7 +160,8 @@ with Bean Validation for early, friendly error messages.
 - CSS `light-dark()` only accepts colours. Shadows and gradients that differ between light and dark mode are
   switched in the `prefers-color-scheme: dark` block of `src/styles.scss`.
 - Photos need the access token, which an `<img src>` cannot send. `PhotoLoader` loads them through
-  `HttpClient` and shows them as object URLs, once per session (photos never change).
+  `HttpClient` and shows them as object URLs, once per session (photos never change). Only the last few
+  large photos are kept; a photo that could not be loaded is tried again the next time it is shown.
 - Pages compose data from several contexts where the user needs it, e.g. the eat-first list (Inventory)
   shows each item's category emoji by looking up the product (Catalog) — the backend modules stay separate.
 - The **scanner** (`labeling/scanner-page.ts`) reads QR codes with the browser's `BarcodeDetector` where it supports
