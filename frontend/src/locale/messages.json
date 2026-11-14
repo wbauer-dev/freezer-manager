@@ -282,6 +282,7 @@
     "labels.legend.next": "next print",
     "labels.legend.used": "used",
     "labels.sheet.hint": "Tap a position to mark a torn or misprinted sticker as used.",
+    "labels.startHint.newSheet": "Starts on a new sheet.",
     "labels.startHint.continues": "Starts at position {$position} of your current sheet and continues on a new sheet ({$more} more).",
     "labels.startHint": "Starts at position {$position} of your current sheet.",
     "labels.removeFromQueue": "Remove {$name} from the queue",

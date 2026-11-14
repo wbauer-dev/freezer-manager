@@ -78,6 +78,11 @@ export class LabelsPage {
     if (!sheet) {
       return '';
     }
+    // The backend says -1 when the current sheet is full; the used positions say the same.
+    const full = sheet.nextPosition < 0 || sheet.usedPositions.length >= sheet.columns * sheet.rows;
+    if (full) {
+      return $localize`:@@labels.startHint.newSheet:Starts on a new sheet.`;
+    }
     const position = sheet.nextPosition + 1;
     const more = this.onNewSheets();
     return more > 0

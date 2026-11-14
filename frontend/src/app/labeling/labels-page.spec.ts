@@ -56,6 +56,14 @@ describe('LabelsPage', () => {
     expect(text()).toContain('Starts at position 3 of your current sheet.');
   });
 
+  it('tells that printing starts on a new sheet when the current one is full', async () => {
+    const all = Array.from({ length: 24 }, (_, position) => position);
+    await open(sheet(all, -1));
+
+    expect(text()).toContain('Starts on a new sheet.');
+    expect(text()).not.toContain('position 0');
+  });
+
   it('shows why printing failed', async () => {
     await open(sheet([], 0));
 

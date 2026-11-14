@@ -285,6 +285,7 @@
     "labels.sheet.hint": "Tippe auf eine Position, um ein zerrissenes oder verdrucktes Etikett als verbraucht zu markieren.",
     "labels.startHint.continues": "Beginnt bei Position {$position} des aktuellen Bogens und geht auf einem neuen Bogen weiter ({$more} weitere).",
     "labels.startHint": "Beginnt bei Position {$position} des aktuellen Bogens.",
+    "labels.startHint.newSheet": "Beginnt auf einem neuen Bogen.",
     "labels.removeFromQueue": "{$name} aus der Druckliste entfernen",
     "labels.cell.usedTooltip": "Verbraucht — tippen, um sie als frei zu markieren",
     "labels.cell.queuedTooltip": "Etikett {$number} kommt hierher",
