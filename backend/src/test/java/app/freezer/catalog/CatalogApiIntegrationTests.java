@@ -188,6 +188,33 @@ class CatalogApiIntegrationTests {
 				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
 	}
 
+	/** A member of another household uses this household's ids under the URLs of their own household. */
+	@Test
+	void idsOfAnotherHouseholdAreUnknownInOnesOwn() {
+		var vegetables = categoryNamed("Vegetables");
+		List<String> peas = JsonPath.read(content(mvc.get().uri(api("/products")).with(alice).exchange()),
+				"$[?(@.name == 'Peas')].id");
+		var carol = user("carol-" + UUID.randomUUID());
+		var carols = "/api/households/"
+				+ json(send(mvc.post().uri("/api/households"), carol, "{ \"name\": \"Carol's\" }"), "$.id");
+
+		assertThat(send(mvc.put().uri(carols + "/products/" + peas.getFirst()), carol,
+				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(carols + "/products/" + peas.getFirst()).with(carol))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.delete().uri(carols + "/food-categories/" + vegetables).with(carol))
+				.hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(send(mvc.put().uri(carols + "/food-categories/" + vegetables), carol,
+				"{ \"name\": \"Mine\", \"emoji\": \"🥦\", \"shelfLifeMonths\": 12 }")).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(send(mvc.post().uri(carols + "/products"), carol,
+				"{ \"name\": \"Mine\", \"categoryId\": \"" + vegetables + "\" }")).hasStatus(HttpStatus.NOT_FOUND);
+
+		assertThat(mvc.get().uri(api("/products")).with(alice)).bodyJson()
+				.extractingPath("$[*].name").asArray().contains("Peas").doesNotContain("Mine");
+		assertThat(mvc.get().uri(api("/food-categories")).with(alice)).bodyJson()
+				.extractingPath("$[*].name").asArray().contains("Vegetables").doesNotContain("Mine");
+	}
+
 	private String categoryNamed(String name) {
 		List<String> ids = JsonPath.read(content(mvc.get().uri(api("/food-categories")).with(alice).exchange()),
 				"$[?(@.name == '" + name + "')].id");
