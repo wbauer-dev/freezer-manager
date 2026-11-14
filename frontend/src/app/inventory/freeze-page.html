@@ -385,8 +385,23 @@
             matInput
             id="label-code"
             [formField]="freezeForm.labelCode"
+            [matAutocomplete]="labelOptions"
             placeholder="K7Q2-M9XA"
           />
+          <mat-autocomplete #labelOptions>
+            @for (label of labelSuggestions(); track label.code) {
+              <mat-option [value]="formatCode(label.code)">
+                <span class="free-label-code">{{ formatCode(label.code) }}</span>
+                <span class="free-label-last">
+                  @if (label.lastContents; as last) {
+                    <span i18n="@@freeze.label.lastContents">last: {{ last }}</span>
+                  } @else {
+                    <span i18n="@@freeze.label.unused">not used yet</span>
+                  }
+                </span>
+              </mat-option>
+            }
+          </mat-autocomplete>
         </mat-form-field>
         @if (freezeForm.labelCode().touched()) {
           @for (error of freezeForm.labelCode().errors(); track error.kind) {

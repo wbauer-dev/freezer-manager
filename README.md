@@ -40,7 +40,7 @@ discard what got freezer burn — and never again find a mystery box from two wi
   portions out right away.
 - **QR labels** on A4 sticker sheets. The app remembers which positions of a sheet are used, so
   half-used sheets are not wasted. *Persistent* labels stay on a container and are reused for the
-  next filling.
+  next filling — pick one from the list of free labels, which shows what each one held last.
 - **Photos** of the food — turned upright and scaled down in the browser, re-encoded without
   metadata on the server.
 - **A catalog per household:** food categories with emoji and shelf life, and the household's

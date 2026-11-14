@@ -8,9 +8,11 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,11 +102,17 @@ class LabelingApiIntegrationTests {
 		assertThat(get(api("/labels/stock"))).bodyJson().isLenientlyEqualTo("""
 				{ "freePersistent": 2, "persistentInUse": 0 }
 				""");
+		var other = json(codes, "$[1]");
+		var bothFree = Stream.of(code, other).sorted().toList();
+		assertThat(get(api("/labels/free"))).bodyJson().extractingPath("$[*].code").isEqualTo(bothFree);
+		assertThat(get(api("/labels/free"))).bodyJson().extractingPath("$[*].lastContents")
+				.isEqualTo(Arrays.asList(null, null));
 
 		var itemId = json(post(api("/items"), freezeRequest(1, code.toLowerCase(Locale.ROOT))), "$.id");
 		await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(get("/api/labels/" + code))
 				.bodyJson().extractingPath("$.state").isEqualTo("ATTACHED"));
 		assertThat(post(api("/items"), freezeRequest(1, code))).hasStatus(HttpStatus.CONFLICT);
+		assertThat(get(api("/labels/free"))).bodyJson().extractingPath("$[*].code").isEqualTo(List.of(other));
 
 		assertThat(post(api("/label-sheet/queue"), """
 				{ "code": "%s", "layout": "CONTENT_ONLY", "itemId": "%s" }
@@ -116,6 +124,11 @@ class LabelingApiIntegrationTests {
 		post(api("/items/" + itemId + "/discard"), "{ \"reason\": \"OTHER\" }");
 		await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(get("/api/labels/" + code))
 				.bodyJson().extractingPath("$.state").isEqualTo("FREE"));
+		// Free again, and it remembers what it held, so members can tell their containers apart.
+		var free = get(api("/labels/free"));
+		assertThat(free).bodyJson().extractingPath("$[*].code").isEqualTo(bothFree);
+		assertThat(free).bodyJson().extractingPath("$[?(@.code == '%s')].lastContents".formatted(code))
+				.isEqualTo(List.of("Peas"));
 	}
 
 	@Test

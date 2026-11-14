@@ -39,3 +39,10 @@ export interface LabelStock {
   freePersistent: number;
   persistentInUse: number;
 }
+
+/** A persistent label that is on no item right now. */
+export interface FreeLabel {
+  code: string;
+  /** What it held last, or null if it was never used. */
+  lastContents: string | null;
+}

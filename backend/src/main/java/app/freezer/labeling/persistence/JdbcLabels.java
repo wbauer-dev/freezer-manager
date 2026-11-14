@@ -1,5 +1,7 @@
 package app.freezer.labeling.persistence;
 
+import java.util.List;
+
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.Repository;
 
@@ -17,5 +19,13 @@ interface JdbcLabels extends Labels, Repository<Label, LabelCode> {
 			where household_id = :householdId and kind = 'PERSISTENT' and state = :state
 			""")
 	int countPersistent(HouseholdId householdId, LabelState state);
+
+	@Override
+	@Query("""
+			select * from labeling.label
+			where household_id = :householdId and kind = 'PERSISTENT' and state = 'FREE'
+			order by code
+			""")
+	List<Label> findFreePersistent(HouseholdId householdId);
 
 }

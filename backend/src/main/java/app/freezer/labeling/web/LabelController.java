@@ -54,6 +54,14 @@ class LabelController {
 		return ScanView.of(scans.resolve(user, LabelCode.parse(code)));
 	}
 
+	/** Persistent labels to choose from when freezing something into a labelled container. */
+	@GetMapping("/api/households/{householdId}/labels/free")
+	List<FreeLabelView> freeLabels(HouseholdMember member) {
+		return printing.freeLabels(member).stream()
+				.map(label -> new FreeLabelView(label.code().value(), label.lastContents()))
+				.toList();
+	}
+
 	@GetMapping("/api/households/{householdId}/labels/stock")
 	LabelStock stock(HouseholdMember member) {
 		return printing.stock(member);
@@ -135,6 +143,9 @@ class LabelController {
 	}
 
 	record CreatePersistentRequest(@Min(1) @Max(LabelPrinting.MAX_PERSISTENT_AT_ONCE) int count) {
+	}
+
+	record FreeLabelView(String code, String lastContents) {
 	}
 
 }
