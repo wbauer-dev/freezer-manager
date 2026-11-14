@@ -44,13 +44,13 @@
           matTooltip="Choose an emoji"
           i18n-matTooltip="@@catalog.category.chooseEmoji"
         >
-          {{ draft.emoji || '?' }}
+          <span class="food-emoji">{{ draft.emoji || '?' }}</span>
         </button>
         <mat-menu #emojiMenu class="emoji-menu">
           <div class="emoji-grid">
             @for (emoji of emojiSuggestions; track emoji) {
               <button type="button" class="emoji-option" (click)="changeDraft({ emoji })">
-                {{ emoji }}
+                <span class="food-emoji">{{ emoji }}</span>
               </button>
             }
           </div>
@@ -178,7 +178,9 @@
           <ng-container *ngTemplateOutlet="editor" />
         } @else {
           <header class="category-head">
-            <span class="category-emoji" aria-hidden="true">{{ section.category.emoji }}</span>
+            <span class="category-emoji" aria-hidden="true">
+              <span class="food-emoji">{{ section.category.emoji }}</span>
+            </span>
             <div class="category-title">
               <h2>{{ section.category.name }}</h2>
               <span class="keeps">
@@ -412,7 +414,7 @@
       @for (category of categories.value(); track category.id) {
         @if (category.id !== product.categoryId) {
           <button mat-menu-item (click)="moveTo(product, category)">
-            <span class="menu-emoji">{{ category.emoji }}</span>
+            <span class="menu-emoji food-emoji">{{ category.emoji }}</span>
             {{ category.name }}
           </button>
         }
