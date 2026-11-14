@@ -58,6 +58,7 @@
       <div class="photo-row">
         <!-- Phones: the camera opens directly; the other input offers the gallery (or files on a computer). -->
         <input
+          name="camera-photo"
           #cameraInput
           type="file"
           accept="image/*"
@@ -66,6 +67,7 @@
           (change)="choosePhoto($event)"
         />
         <input
+          name="photo"
           #photoInput
           type="file"
           accept="image/*"

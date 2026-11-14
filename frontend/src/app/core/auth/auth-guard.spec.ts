@@ -29,7 +29,7 @@ describe('authGuard and AuthCallback', () => {
       providers: [
         provideRouter([
           { path: 'auth/callback', component: AuthCallback },
-          { path: 'households', component: Page },
+          { path: '', pathMatch: 'full', component: Page },
           { path: 's/:code', canActivate: [authGuard], component: Page },
         ]),
         { provide: OidcSecurityService, useValue: { authorize, authenticated } },
@@ -73,7 +73,7 @@ describe('authGuard and AuthCallback', () => {
 
     // A later login that started without remembering anything ends on the start page, not on the old address.
     await open('/auth/callback');
-    expect(router.url).toBe('/households');
+    expect(router.url).toBe('/');
   });
 
   it('keeps no address of its own in the library, so the library never navigates past the callback page', async () => {

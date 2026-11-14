@@ -2,6 +2,7 @@
   <label class="search">
     <mat-icon>search</mat-icon>
     <input
+      name="catalog-search"
       type="search"
       [value]="search()"
       (input)="search.set($any($event.target).value)"
@@ -60,6 +61,7 @@
             (keydown)="$event.stopPropagation()"
           >
             <input
+              name="category-emoji"
               maxlength="16"
               [value]="draft.emoji"
               (input)="changeDraft({ emoji: $any($event.target).value })"
@@ -242,6 +244,7 @@
           @for (product of section.shown; track product.id) {
             @if (renaming() === product.id) {
               <input
+                name="food-name"
                 #renameInput
                 class="food rename"
                 appAutofocus
@@ -267,6 +270,7 @@
           <label class="food add">
             <mat-icon>add</mat-icon>
             <input
+              [name]="'new-food-' + section.category.id"
               #newFood
               maxlength="40"
               placeholder="Add food…"

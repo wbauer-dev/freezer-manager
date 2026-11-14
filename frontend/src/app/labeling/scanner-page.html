@@ -56,6 +56,7 @@
   <form class="manual" (submit)="$event.preventDefault(); enterCode(codeInput)">
     <mat-icon>keyboard</mat-icon>
     <input
+      name="label-code"
       #codeInput
       autocomplete="off"
       autocapitalize="characters"

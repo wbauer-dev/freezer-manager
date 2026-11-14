@@ -139,6 +139,7 @@
           <div class="drawer add">
             <mat-icon>add</mat-icon>
             <input
+              [name]="'new-drawer-' + freezer.id"
               #compartmentName
               maxlength="40"
               placeholder="Add a drawer…"
