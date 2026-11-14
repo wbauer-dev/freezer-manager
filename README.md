@@ -35,6 +35,8 @@ discard what got freezer burn — and never again find a mystery box from two wi
   category's shelf life unless you set it yourself.
 - **Eat first:** everything in the freezers by urgency, with a freshness ring around each food.
 - **Take out** portions (undo within 10 minutes), **discard** with a reason, full history per item.
+- **Scan a label** with the app's scanner (or any phone camera) to see what is inside and take
+  portions out right away.
 - **QR labels** on A4 sticker sheets. The app remembers which positions of a sheet are used, so
   half-used sheets are not wasted. *Persistent* labels stay on a container and are reused for the
   next filling.

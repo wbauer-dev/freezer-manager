@@ -34,6 +34,9 @@
             ],
             "polyfills": [
               "@angular/localize/init"
+            ],
+            "allowedCommonJsDependencies": [
+              "jsqr"
             ]
           },
           "configurations": {

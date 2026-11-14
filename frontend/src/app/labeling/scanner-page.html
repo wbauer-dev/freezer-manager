@@ -1,0 +1,247 @@
+<header class="page-head rise">
+  <button
+    mat-icon-button
+    type="button"
+    class="close"
+    (click)="close()"
+    aria-label="Close"
+    i18n-aria-label="@@common.close"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+  <div>
+    <p class="eyebrow" i18n="@@scanner.eyebrow">Scanner</p>
+    <h1 i18n="@@scanner.title">Scan a label</h1>
+  </div>
+</header>
+
+<section class="camera-card glass rise" [hidden]="phase() !== 'camera'">
+  <div class="viewfinder" [class.off]="cameraProblem() !== null">
+    <video #video muted playsinline aria-hidden="true"></video>
+    @if (cameraProblem(); as problem) {
+      <div class="problem">
+        <mat-icon>no_photography</mat-icon>
+        @switch (problem) {
+          @case ('insecure') {
+            <p i18n="@@scanner.problem.insecure">
+              The camera only works when the app is opened over HTTPS.
+            </p>
+          }
+          @case ('denied') {
+            <p i18n="@@scanner.problem.denied">
+              The camera is not allowed. Allow it in your browser’s settings for this site.
+            </p>
+            <button mat-stroked-button type="button" (click)="scanNext()">
+              <span i18n="@@scanner.problem.retry">Try again</span>
+            </button>
+          }
+          @default {
+            <p i18n="@@scanner.problem.unavailable">No camera found.</p>
+          }
+        }
+      </div>
+    } @else {
+      <div class="frame" [class.waiting]="cameraStarting()" aria-hidden="true">
+        <i class="corner top-left"></i>
+        <i class="corner top-right"></i>
+        <i class="corner bottom-left"></i>
+        <i class="corner bottom-right"></i>
+        <i class="sweep"></i>
+      </div>
+    }
+  </div>
+  @if (cameraProblem() === null) {
+    <p class="hint" i18n="@@scanner.hint">Hold a label’s QR code inside the frame.</p>
+  }
+  <form class="manual" (submit)="$event.preventDefault(); enterCode(codeInput)">
+    <mat-icon>keyboard</mat-icon>
+    <input
+      #codeInput
+      autocomplete="off"
+      autocapitalize="characters"
+      spellcheck="false"
+      maxlength="20"
+      placeholder="Or type the code, e.g. K7Q2-M9XA"
+      i18n-placeholder="@@scanner.manual.placeholder"
+      aria-label="Code on the label"
+      i18n-aria-label="@@freeze.label.code"
+    />
+    <button mat-button type="submit"><span i18n="@@scanner.manual.show">Show</span></button>
+  </form>
+</section>
+
+@if (phase() === 'resolving') {
+  <div class="skeleton result-skeleton"></div>
+}
+
+@if (phase() === 'result') {
+  @if (item(); as scanned) {
+    <article
+      class="result glass rise"
+      [class]="'status-' + scanned.item.expiryStatus.toLowerCase()"
+      [class.gone]="scanned.item.state !== 'IN_FREEZER'"
+    >
+      <div class="result-head">
+        <app-food-avatar
+          [emoji]="scanned.emoji"
+          [status]="scanned.item.state === 'IN_FREEZER' ? scanned.item.expiryStatus : null"
+          [freshness]="scanned.item.state === 'IN_FREEZER' ? freshness() : null"
+          [photo]="photoUrl()"
+          [size]="84"
+        />
+        <div class="result-title">
+          <p class="eyebrow">{{ scanned.householdName }} · {{ format(scanned.label.code) }}</p>
+          <h2>{{ scanned.item.productName }}</h2>
+          @if (scanned.item.note) {
+            <p class="note">“{{ scanned.item.note }}”</p>
+          }
+        </div>
+      </div>
+
+      <div class="facts">
+        <span class="chip">
+          <mat-icon>kitchen</mat-icon>
+          {{ scanned.item.freezerName }}
+          @if (scanned.item.compartmentName) {
+            · {{ scanned.item.compartmentName }}
+          }
+        </span>
+        <span class="chip">
+          <mat-icon>event</mat-icon>
+          <span i18n="@@freeze.summary.bestBefore"
+            >Best before {{ scanned.item.bestBefore | date: dateFormat }}</span
+          >
+        </span>
+      </div>
+
+      @switch (scanned.item.state) {
+        @case ('IN_FREEZER') {
+          <p class="time-left">{{ timeLeft() }}</p>
+          <div class="take-out">
+            <span class="left" i18n="@@item.portionsLeft"
+              >{{ scanned.item.remainingPortions }} of {{ scanned.item.initialPortions }} left</span
+            >
+            <div class="stepper">
+              <button
+                mat-icon-button
+                type="button"
+                (click)="changePortions(-1)"
+                [disabled]="portions() <= 1"
+                aria-label="One portion less"
+                i18n-aria-label="@@freeze.portionLess"
+              >
+                <mat-icon>remove</mat-icon>
+              </button>
+              <strong>{{ portions() }}</strong>
+              <button
+                mat-icon-button
+                type="button"
+                (click)="changePortions(1)"
+                [disabled]="portions() >= scanned.item.remainingPortions"
+                aria-label="One portion more"
+                i18n-aria-label="@@freeze.portionMore"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+            <button
+              mat-flat-button
+              type="button"
+              class="cta take-out-button"
+              (click)="takeOut()"
+              [disabled]="busy()"
+            >
+              <mat-icon>outbox</mat-icon>
+              <span i18n="@@item.takeOut">{portions(), plural,
+                =1 {Take out 1 portion}
+                other {Take out {{ portions() }} portions}
+              }</span>
+            </button>
+          </div>
+        }
+        @case ('CONSUMED') {
+          <p class="gone-note"><span>🎉</span> <span i18n="@@item.eaten.title">All eaten!</span></p>
+        }
+        @default {
+          <p class="gone-note">
+            <span>🗑️</span> <span i18n="@@item.status.discarded">Discarded</span>
+          </p>
+        }
+      }
+
+      <div class="actions">
+        <a
+          mat-button
+          [routerLink]="['/households', scanned.label.householdId, 'items', scanned.item.id]"
+        >
+          <mat-icon>info</mat-icon>
+          <span i18n="@@scanner.details">Details</span>
+        </a>
+        <button mat-stroked-button type="button" (click)="scanNext()">
+          <mat-icon>qr_code_scanner</mat-icon>
+          <span i18n="@@scanner.next">Scan next</span>
+        </button>
+      </div>
+    </article>
+  } @else {
+    <article class="result message glass rise">
+      @if (freeLabel(); as label) {
+        <span class="message-icon"><mat-icon>new_label</mat-icon></span>
+        <h2 i18n="@@scanner.free.title">This label is free</h2>
+        <p i18n="@@scanner.free.text">
+          Label {{ format(label.code) }} is not on any food right now.
+        </p>
+        <div class="actions">
+          <button mat-button type="button" (click)="scanNext()">
+            <span i18n="@@scanner.next">Scan next</span>
+          </button>
+          <a
+            mat-flat-button
+            class="cta"
+            [routerLink]="['/households', label.householdId, 'freeze']"
+            [queryParams]="{ label: label.code }"
+          >
+            <mat-icon>ac_unit</mat-icon>
+            <span i18n="@@scanner.free.freeze">Freeze something with it</span>
+          </a>
+        </div>
+      } @else if (usedUpLabel(); as label) {
+        <span class="message-icon"><mat-icon>task_alt</mat-icon></span>
+        <h2 i18n="@@scan.usedUp.title">This label has been used</h2>
+        <p i18n="@@scan.usedUp.text">
+          The item it was on is already eaten or discarded. One-time labels can’t be used again.
+        </p>
+        <div class="actions">
+          @if (label.itemId) {
+            <a mat-button [routerLink]="['/households', label.householdId, 'items', label.itemId]">
+              <span i18n="@@scan.usedUp.history">Show the item’s history</span>
+            </a>
+          }
+          <button mat-stroked-button type="button" (click)="scanNext()">
+            <mat-icon>qr_code_scanner</mat-icon>
+            <span i18n="@@scanner.next">Scan next</span>
+          </button>
+        </div>
+      } @else {
+        <span class="message-icon"><mat-icon>help_outline</mat-icon></span>
+        @if (unknownCode(); as code) {
+          <h2 i18n="@@scan.unknown.title">Unknown label</h2>
+          <p i18n="@@scan.unknown.text">
+            {{ format(code) }} doesn’t belong to any of your households.
+          </p>
+        } @else if (result()?.kind === 'not-a-label') {
+          <h2 i18n="@@scanner.notALabel.title">Not one of our labels</h2>
+          <p i18n="@@scanner.notALabel.text">This QR code doesn’t belong to Freezer Manager.</p>
+        } @else {
+          <h2 i18n="@@scan.error">The label could not be read</h2>
+        }
+        <div class="actions">
+          <button mat-stroked-button type="button" (click)="scanNext()">
+            <mat-icon>qr_code_scanner</mat-icon>
+            <span i18n="@@scanner.next">Scan next</span>
+          </button>
+        </div>
+      }
+    </article>
+  }
+}

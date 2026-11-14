@@ -55,6 +55,10 @@ export class InventoryApi {
     );
   }
 
+  item(householdId: string, itemId: string): Observable<FrozenItem> {
+    return this.http.get<FrozenItem>(`/api/households/${householdId}/items/${itemId}`);
+  }
+
   freeze(householdId: string, request: FreezeRequest): Observable<FrozenItem> {
     return this.http.post<FrozenItem>(`/api/households/${householdId}/items`, request);
   }

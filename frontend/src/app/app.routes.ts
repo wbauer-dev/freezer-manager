@@ -52,6 +52,12 @@ export const routes: Routes = [
     ],
   },
   {
+    // The scanner inside the app: camera, label, food, take out.
+    path: 'scan',
+    canActivate: [authGuard],
+    loadComponent: () => import('./labeling/scanner-page').then((m) => m.ScannerPage),
+  },
+  {
     // QR codes on labels link here.
     path: 's/:code',
     canActivate: [authGuard],

@@ -160,6 +160,9 @@ with Bean Validation for early, friendly error messages.
   `HttpClient` and shows them as object URLs, once per session (photos never change).
 - Pages compose data from several contexts where the user needs it, e.g. the eat-first list (Inventory)
   shows each item's category emoji by looking up the product (Catalog) — the backend modules stay separate.
+- The **scanner** (`labeling/scanner-page.ts`) reads QR codes with the browser's `BarcodeDetector` where it supports
+  QR codes (Chrome on Android) and with the jsQR library elsewhere, loaded only then. Camera access needs HTTPS or
+  localhost.
 - Motion respects `prefers-reduced-motion`; page changes use the View Transitions API (food avatars morph from
   the list into the item page).
 - **Languages** use Angular's built-in i18n (`@angular/localize`) with translations loaded at runtime: `main.ts`
