@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatRippleModule } from '@angular/material/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
 import { CatalogApi } from '../catalog/catalog-api';
@@ -74,6 +75,7 @@ export class FreezePage {
   private readonly inventoryApi = inject(InventoryApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly products = httpResource<Product[]>(
     () => `/api/households/${this.householdId()}/products`,
@@ -366,9 +368,7 @@ export class FreezePage {
           }),
         );
         if (labelCode && this.printContents()) {
-          await firstValueFrom(
-            this.labelingApi.enqueue(this.householdId(), labelCode, 'CONTENT_ONLY', item.id),
-          );
+          await this.queueContentsSticker(labelCode, item.id);
         }
         await this.router.navigate(['..', 'items', item.id], { relativeTo: this.route });
         return undefined;
@@ -383,6 +383,24 @@ export class FreezePage {
         return { kind: 'server', message };
       }
     });
+  }
+
+  /**
+   * The item is frozen by now, so a sticker that can't be queued must not fail the freezing: freezing again would
+   * fail on the label, or freeze the food twice. The sticker can be printed from the item page instead.
+   */
+  private async queueContentsSticker(labelCode: string, itemId: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.labelingApi.enqueue(this.householdId(), labelCode, 'CONTENT_ONLY', itemId),
+      );
+    } catch {
+      this.snackBar.open(
+        $localize`:@@freeze.stickerError:Frozen — but the contents sticker could not be added to the print queue. Try again with “Print sticker”.`,
+        $localize`:@@common.ok:OK`,
+        { duration: 10000 },
+      );
+    }
   }
 
   /**

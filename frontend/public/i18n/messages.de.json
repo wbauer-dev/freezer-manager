@@ -177,6 +177,7 @@
     "freeze.validation.labelCode": "Gib den Code ein, der auf dem Etikett steht.",
     "freeze.photo.uploadError": "Das Foto konnte nicht hochgeladen werden.",
     "freeze.error": "Der Eintrag konnte nicht eingefroren werden. Bitte versuche es noch einmal.",
+    "freeze.stickerError": "Eingefroren — aber das Inhaltsetikett konnte nicht in die Druckliste gelegt werden. Versuche es mit „Etikett drucken“ noch einmal.",
     "freeze.label.otherHousehold": "Dieses Etikett gehört zu einem anderen Haushalt.",
     "freeze.label.inUse": "Dieses Etikett klebt schon auf einem anderen Eintrag.",
     "freeze.label.usedUp": "Dieses Etikett wurde schon verwendet. Drucke stattdessen ein neues.",

@@ -267,11 +267,8 @@ describe('FreezePage', () => {
     expect(field.value).toBe('W4TR-5BXZ');
   });
 
-  it('prefers a persistent label the household owns and can print a contents sticker for it', async () => {
-    await open(3);
-    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    expect(fixture.nativeElement.textContent).toContain('3 free persistent labels');
-
+  /** Freezes peas with a persistent label and a contents sticker; returns the request that queues the sticker. */
+  async function freezeWithContentsSticker(): Promise<TestRequest> {
     await enter('#product', 'peas');
     await enter('#label-code', 'p3rs-1st3');
     fixture.nativeElement.querySelector('.print-contents input').click();
@@ -290,8 +287,15 @@ describe('FreezePage', () => {
     expect(freeze.request.body).toMatchObject({ productId: 'p1', labelCode: 'P3RS1ST3' });
     freeze.flush({ id: 'i3' });
     await settle();
+    return http.expectOne({ method: 'POST', url: '/api/households/h1/label-sheet/queue' });
+  }
 
-    const sticker = http.expectOne({ method: 'POST', url: '/api/households/h1/label-sheet/queue' });
+  it('prefers a persistent label the household owns and can print a contents sticker for it', async () => {
+    await open(3);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    expect(fixture.nativeElement.textContent).toContain('3 free persistent labels');
+
+    const sticker = await freezeWithContentsSticker();
     expect(sticker.request.body).toEqual({
       code: 'P3RS1ST3',
       layout: 'CONTENT_ONLY',
@@ -299,5 +303,23 @@ describe('FreezePage', () => {
     });
     sticker.flush(null);
     await settle();
+
+    expect(navigate).toHaveBeenCalledWith(['..', 'items', 'i3'], expect.anything());
+  });
+
+  it('goes to the frozen item even if its contents sticker could not be queued', async () => {
+    await open(3);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    const sticker = await freezeWithContentsSticker();
+    sticker.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    await fixture.whenStable();
+
+    expect(navigate).toHaveBeenCalledWith(['..', 'items', 'i3'], expect.anything());
+    expect(document.querySelector('.mat-mdc-snack-bar-label')?.textContent).toContain(
+      'Frozen — but the contents sticker could not be added to the print queue.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('could not be frozen');
   });
 });
