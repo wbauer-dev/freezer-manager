@@ -3,6 +3,7 @@ package app.freezer.shopping;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.times;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.modulith.events.core.EventPublicationRegistry;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -53,6 +55,9 @@ class ShoppingModuleTests {
 	@Autowired
 	ShoppingListManagement shopping;
 
+	@Autowired
+	EventPublicationRegistry publications;
+
 	HouseholdMember alice;
 	ProductId peas;
 
@@ -88,10 +93,51 @@ class ShoppingModuleTests {
 	void entriesFollowRenamedProducts(Scenario scenario) {
 		knowPeas();
 		shopping.add(alice, new AddEntry(peas, null, null));
+		catalogCalls(peas, "Garden peas");
 
 		scenario.publish(new ProductRenamed(alice.householdId(), peas, "Garden peas"))
 				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Garden peas"::equals).isPresent())
 				.andVerify(name -> assertThat(name).contains("Garden peas"));
+	}
+
+	/** Events may arrive late, twice or out of order: the list follows the catalog, not the event. */
+	@Test
+	void anOldRenameArrivingAfterANewerOneLeavesTheNewerName(Scenario scenario) {
+		knowPeas();
+		shopping.add(alice, new AddEntry(peas, null, null));
+		catalogCalls(peas, "Frozen peas");
+		scenario.publish(new ProductRenamed(alice.householdId(), peas, "Frozen peas"))
+				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Frozen peas"::equals).isPresent());
+
+		var late = new ProductRenamed(alice.householdId(), peas, "Garden peas");
+		scenario.publish(late)
+				.andWaitForStateChange(() -> handled(late))
+				.andVerify(handled -> assertThat(nameOnTheList()).contains("Frozen peas"));
+	}
+
+	@Test
+	void aProductRemovedFromTheCatalogKeepsTheNameFromTheEvent(Scenario scenario) {
+		knowPeas();
+		shopping.add(alice, new AddEntry(peas, null, null));
+		when(catalog.findProduct(alice.householdId(), peas)).thenReturn(Optional.empty());
+
+		scenario.publish(new ProductRenamed(alice.householdId(), peas, "Garden peas"))
+				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Garden peas"::equals).isPresent())
+				.andVerify(name -> assertThat(name).contains("Garden peas"));
+	}
+
+	@Test
+	void aRenameThatCollidedWithAMembersChangeIsAppliedAgain(Scenario scenario) {
+		knowPeas();
+		shopping.add(alice, new AddEntry(peas, null, null));
+		catalogCalls(peas, "Garden peas");
+		clearInvocations(lists);
+		var realRepository = mockingDetails(lists).getMockCreationSettings().getDefaultAnswer();
+		doThrow(new OptimisticLockingFailureException("collided")).doAnswer(realRepository).when(lists).save(any());
+
+		scenario.publish(new ProductRenamed(alice.householdId(), peas, "Garden peas"))
+				.andWaitForStateChange(this::nameOnTheList, name -> name.filter("Garden peas"::equals).isPresent())
+				.andVerify(name -> verify(lists, times(2)).save(any(ShoppingList.class)));
 	}
 
 	@Test
@@ -108,8 +154,17 @@ class ShoppingModuleTests {
 	}
 
 	private void knowPeas() {
-		when(catalog.findProduct(alice.householdId(), peas))
-				.thenReturn(Optional.of(new ProductDescription(peas, "Peas", Period.ofMonths(12))));
+		catalogCalls(peas, "Peas");
+	}
+
+	private void catalogCalls(ProductId product, String name) {
+		when(catalog.findProduct(alice.householdId(), product))
+				.thenReturn(Optional.of(new ProductDescription(product, name, Period.ofMonths(12))));
+	}
+
+	private boolean handled(Object event) {
+		return publications.findIncompletePublications().stream()
+				.noneMatch(publication -> publication.getEvent().equals(event));
 	}
 
 	private Optional<String> nameOnTheList() {

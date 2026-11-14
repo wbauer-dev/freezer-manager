@@ -3,6 +3,7 @@ package app.freezer.shopping.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -12,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import app.freezer.catalog.Catalog;
+import app.freezer.catalog.ProductDescription;
+import app.freezer.catalog.ProductId;
 import app.freezer.household.HouseholdId;
 import app.freezer.household.HouseholdMember;
 import app.freezer.shopping.domain.EntryId;
@@ -23,7 +26,8 @@ import app.freezer.shopping.domain.ShoppingLists;
  * <p>
  * The whole list is one aggregate, so two members changing it at the same moment collide on its version. The list's
  * commands are idempotent or merge (see {@link ShoppingList}), so a collided change is simply applied again to the
- * fresh list, in a new transaction. The same covers two members creating the household's list at once.
+ * fresh list, in a new transaction. The same covers two members creating the household's list at once, and the
+ * reaction to a renamed product.
  */
 @Service
 public class ShoppingListManagement {
@@ -77,14 +81,32 @@ public class ShoppingListManagement {
 		return change(member, ShoppingList::clearChecked);
 	}
 
+	/**
+	 * A product was renamed in the catalog: its entries take the name the product has <em>now</em>. Events may arrive
+	 * late, twice or out of order, so the name in the event may be outdated. The catalog is asked only after the list
+	 * was loaded: a rename it doesn't show yet has an event of its own, which will load this change or collide with it.
+	 * A product removed from the catalog in the meantime keeps the name from the event.
+	 */
+	void productRenamed(HouseholdId householdId, ProductId productId, String nameInEvent) {
+		applyAgainOnCollision(() -> lists.findById(householdId).map(list -> {
+			var name = catalog.findProduct(householdId, productId).map(ProductDescription::name).orElse(nameInEvent);
+			return list.productRenamed(productId, name) ? lists.save(list) : list;
+		}));
+	}
+
 	private ShoppingList change(HouseholdMember member, Consumer<ShoppingList> command) {
+		return applyAgainOnCollision(() -> {
+			var list = listOf(member.householdId());
+			command.accept(list);
+			return lists.save(list);
+		});
+	}
+
+	/** Runs the change in a transaction of its own, and again in a new one if it collided. */
+	private <T> T applyAgainOnCollision(Supplier<T> change) {
 		for (int attempt = 1;; attempt++) {
 			try {
-				return transaction.execute(status -> {
-					var list = listOf(member.householdId());
-					command.accept(list);
-					return lists.save(list);
-				});
+				return transaction.execute(status -> change.get());
 			}
 			catch (RuntimeException e) {
 				if (!isConcurrentChange(e)) {
